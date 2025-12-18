@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/aldehir/llm-evals/internal/client"
 )
@@ -16,6 +17,10 @@ func toolEvals() []Eval {
 		&singleToolCallEval{streaming: true},
 		&parallelToolCallEval{streaming: false},
 		&parallelToolCallEval{streaming: true},
+		&requiredToolCallEval{streaming: false},
+		&requiredToolCallEval{streaming: true},
+		&requiredToolCallWithReasoningEval{streaming: false},
+		&requiredToolCallWithReasoningEval{streaming: true},
 	}
 }
 
@@ -271,6 +276,254 @@ func (e *parallelToolCallEval) Run(ctx context.Context, c *client.Client) Result
 				Passed:   false,
 				Message:  "tool call " + string(rune('0'+i)) + " missing 'location' parameter",
 			}
+		}
+	}
+
+	return Result{
+		Name:     e.Name(),
+		Category: e.Category(),
+		Passed:   true,
+	}
+}
+
+// requiredToolCallEval verifies tool_choice: "required" forces a tool call.
+type requiredToolCallEval struct {
+	streaming bool
+}
+
+func (e *requiredToolCallEval) Name() string {
+	if e.streaming {
+		return "required_tool_call_streaming"
+	}
+	return "required_tool_call"
+}
+
+func (e *requiredToolCallEval) Category() string {
+	return toolCategory
+}
+
+func (e *requiredToolCallEval) Run(ctx context.Context, c *client.Client) Result {
+	req := client.ChatCompletionRequest{
+		Messages: []client.Message{
+			{Role: "user", Content: "What's the weather in San Francisco?"},
+		},
+		Tools: []client.Tool{
+			{
+				Type: "function",
+				Function: client.ToolFunction{
+					Name:        "get_weather",
+					Description: "Get the current weather for a location",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"location": {
+								"type": "string",
+								"description": "The city and state, e.g. San Francisco, CA"
+							}
+						},
+						"required": ["location"]
+					}`),
+				},
+			},
+		},
+		ToolChoice: "required",
+	}
+
+	var toolCalls []client.ToolCall
+
+	if e.streaming {
+		result, err := c.ChatCompletionStream(ctx, req)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "request failed: " + err.Error(),
+			}
+		}
+		toolCalls = result.ToolCalls
+	} else {
+		resp, err := c.ChatCompletion(ctx, req)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "no choices in response",
+			}
+		}
+		toolCalls = resp.Choices[0].Message.ToolCalls
+	}
+
+	// Verify we got a tool call
+	if len(toolCalls) == 0 {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "expected tool call with required tool_choice, got none",
+		}
+	}
+
+	tc := toolCalls[0]
+
+	// Verify tool name
+	if tc.Function.Name != "get_weather" {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "expected tool name 'get_weather', got '" + tc.Function.Name + "'",
+		}
+	}
+
+	// Verify arguments are valid JSON
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "tool arguments are not valid JSON: " + err.Error(),
+		}
+	}
+
+	return Result{
+		Name:     e.Name(),
+		Category: e.Category(),
+		Passed:   true,
+	}
+}
+
+// requiredToolCallWithReasoningEval verifies that constrained decoding for
+// required tool calls does not constrain reasoning output.
+type requiredToolCallWithReasoningEval struct {
+	streaming bool
+}
+
+func (e *requiredToolCallWithReasoningEval) Name() string {
+	if e.streaming {
+		return "required_tool_call_with_reasoning_streaming"
+	}
+	return "required_tool_call_with_reasoning"
+}
+
+func (e *requiredToolCallWithReasoningEval) Category() string {
+	return toolCategory
+}
+
+func (e *requiredToolCallWithReasoningEval) Run(ctx context.Context, c *client.Client) Result {
+	req := client.ChatCompletionRequest{
+		Messages: []client.Message{
+			{Role: "user", Content: "What's the weather in San Francisco?"},
+		},
+		Tools: []client.Tool{
+			{
+				Type: "function",
+				Function: client.ToolFunction{
+					Name:        "get_weather",
+					Description: "Get the current weather for a location",
+					Parameters: json.RawMessage(`{
+						"type": "object",
+						"properties": {
+							"location": {
+								"type": "string",
+								"description": "The city and state, e.g. San Francisco, CA"
+							}
+						},
+						"required": ["location"]
+					}`),
+				},
+			},
+		},
+		ToolChoice: "required",
+	}
+
+	var toolCalls []client.ToolCall
+	var reasoningContent string
+
+	if e.streaming {
+		result, err := c.ChatCompletionStream(ctx, req)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "request failed: " + err.Error(),
+			}
+		}
+		toolCalls = result.ToolCalls
+		reasoningContent = result.ReasoningContent
+	} else {
+		resp, err := c.ChatCompletion(ctx, req)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "no choices in response",
+			}
+		}
+		toolCalls = resp.Choices[0].Message.ToolCalls
+		reasoningContent = resp.Choices[0].Message.ReasoningContent
+	}
+
+	// Verify we got a tool call
+	if len(toolCalls) == 0 {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "expected tool call with required tool_choice, got none",
+		}
+	}
+
+	tc := toolCalls[0]
+
+	// Verify tool name
+	if tc.Function.Name != "get_weather" {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "expected tool name 'get_weather', got '" + tc.Function.Name + "'",
+		}
+	}
+
+	// Verify arguments are valid JSON
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "tool arguments are not valid JSON: " + err.Error(),
+		}
+	}
+
+	// Verify reasoning content is present (not constrained by tool decoding)
+	if strings.TrimSpace(reasoningContent) == "" {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "reasoning_content is empty - constrained decoding may be suppressing reasoning",
 		}
 	}
 
