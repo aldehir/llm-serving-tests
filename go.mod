@@ -1,4 +1,4 @@
-module github.com/aldehir/llm-evals
+module github.com/aldehir/llm-serving-tests
 
 go 1.24.1
 

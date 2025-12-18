@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aldehir/llm-evals/internal/client"
-	"github.com/aldehir/llm-evals/internal/eval"
-	evallog "github.com/aldehir/llm-evals/internal/log"
+	"github.com/aldehir/llm-serving-tests/internal/client"
+	"github.com/aldehir/llm-serving-tests/internal/eval"
+	evallog "github.com/aldehir/llm-serving-tests/internal/log"
 )
 
 var (
@@ -32,17 +32,17 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "llm-eval",
-	Short: "LLM inference server evaluation suite",
+	Use:   "llm-serve-test",
+	Short: "LLM inference server test suite",
 	Long:  "A tool for testing LLM inference server implementations against OpenAI-compatible APIs.",
 	RunE:  runEvals,
 }
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List available evals",
-	Long:  "List all available evals that can be filtered with --filter.",
-	Run:   listEvals,
+	Short: "List available tests",
+	Long:  "List all available tests that can be filtered with --filter.",
+	Run:   listTests,
 }
 
 func init() {
@@ -50,9 +50,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key (optional)")
 	rootCmd.PersistentFlags().StringVar(&model, "model", "", "Model to test (required for run)")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "Request timeout")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show full request/response for all evals")
-	rootCmd.PersistentFlags().StringVar(&filter, "filter", "", "Run only evals matching pattern")
-	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only evals of specified class (standard, reasoning, interleaved)")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show full request/response for all tests")
+	rootCmd.PersistentFlags().StringVar(&filter, "filter", "", "Run only tests matching pattern")
+	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only tests of specified class (standard, reasoning, interleaved)")
 	rootCmd.PersistentFlags().StringArrayVarP(&extra, "extra", "e", nil, "Extra request field (key=value or key:=json), can be repeated")
 
 	rootCmd.AddCommand(listCmd)
@@ -113,8 +113,8 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		Logger:  logger,
 	})
 
-	fmt.Println("LLM Eval Suite")
-	fmt.Println("==============")
+	fmt.Println("LLM Serving Tests")
+	fmt.Println("=================")
 	fmt.Printf("Server: %s\n", baseURL)
 	fmt.Printf("Model: %s\n", model)
 	fmt.Println()
@@ -139,31 +139,31 @@ func runEvals(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func listEvals(cmd *cobra.Command, args []string) {
-	evals := eval.AllEvals()
+func listTests(cmd *cobra.Command, args []string) {
+	tests := eval.AllEvals()
 
 	currentCategory := ""
-	for _, e := range evals {
+	for _, t := range tests {
 		// Apply name filter if specified
-		if filter != "" && !strings.Contains(e.Name(), filter) {
+		if filter != "" && !strings.Contains(t.Name(), filter) {
 			continue
 		}
 
 		// Apply class filter if specified
-		if class != "" && e.Class() != class {
+		if class != "" && t.Class() != class {
 			continue
 		}
 
 		// Print category header
-		if e.Category() != currentCategory {
+		if t.Category() != currentCategory {
 			if currentCategory != "" {
 				fmt.Println()
 			}
-			currentCategory = e.Category()
+			currentCategory = t.Category()
 			fmt.Println(currentCategory)
 		}
 
-		fmt.Printf("  %-45s [%s]\n", e.Name(), e.Class())
+		fmt.Printf("  %-45s [%s]\n", t.Name(), t.Class())
 	}
 }
 

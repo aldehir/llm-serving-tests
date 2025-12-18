@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/aldehir/llm-evals/internal/client"
+	"github.com/aldehir/llm-serving-tests/internal/client"
 )
 
 const toolCategory = "Tool Calling"

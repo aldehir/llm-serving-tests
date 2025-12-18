@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	evallog "github.com/aldehir/llm-evals/internal/log"
+	evallog "github.com/aldehir/llm-serving-tests/internal/log"
 )
 
 // Config configures the client.

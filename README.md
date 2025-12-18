@@ -1,25 +1,25 @@
-# llm-evals
+# llm-serving-tests
 
 A test suite for validating LLM inference server implementations. Checks that OpenAI-compatible API responses are correctly structured—reasoning fields populated, tool calls parsed, JSON schemas respected.
 
 ## Install
 
 ```bash
-go install github.com/aldehir/llm-evals/cmd/llm-eval@latest
+go install github.com/aldehir/llm-serving-tests/cmd/llm-serve-test@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/aldehir/llm-evals
-cd llm-evals
-go build -o llm-eval ./cmd/llm-eval
+git clone https://github.com/aldehir/llm-serving-tests
+cd llm-serving-tests
+go build -o llm-serve-test ./cmd/llm-serve-test
 ```
 
 ## Usage
 
 ```bash
-llm-eval --base-url http://localhost:8080/v1 --model deepseek-r1
+llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1
 ```
 
 Required flags:
@@ -29,9 +29,9 @@ Required flags:
 Optional flags:
 - `--api-key` - API key if your server requires auth
 - `--timeout` - Request timeout (default: 30s)
-- `--verbose` / `-v` - Show full request/response for all evals
-- `--filter` - Run only evals matching a pattern (e.g. `--filter streaming`)
-- `--class` - Run only evals of a specific class: `standard`, `reasoning`, or `interleaved`
+- `--verbose` / `-v` - Show full request/response for all tests
+- `--filter` - Run only tests matching a pattern (e.g. `--filter streaming`)
+- `--class` - Run only tests of a specific class: `standard`, `reasoning`, or `interleaved`
 - `--extra` / `-e` - Add custom fields to request payloads (repeatable)
 
 ## Test Classes
@@ -44,23 +44,23 @@ Not all models support all features. Use `--class` to run only relevant tests:
 
 ```bash
 # Test a standard model
-llm-eval --base-url http://localhost:8080/v1 --model llama-3 --class standard
+llm-serve-test --base-url http://localhost:8080/v1 --model llama-3 --class standard
 
 # Test a reasoning model
-llm-eval --base-url http://localhost:8080/v1 --model deepseek-r1 --class reasoning
+llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 --class reasoning
 ```
 
-## List Available Evals
+## List Available Tests
 
 ```bash
-llm-eval list
+llm-serve-test list
 ```
 
 Filter the list:
 
 ```bash
-llm-eval list --filter tool
-llm-eval list --class reasoning
+llm-serve-test list --filter tool
+llm-serve-test list --class reasoning
 ```
 
 ## Custom Request Fields
@@ -69,11 +69,11 @@ Some servers need extra parameters. Use `--extra` to add fields to the request b
 
 ```bash
 # String value
-llm-eval --base-url ... --model ... --extra "custom_param=value"
+llm-serve-test --base-url ... --model ... --extra "custom_param=value"
 
 # JSON value (use := instead of =)
-llm-eval --base-url ... --model ... --extra "temperature:=0.7"
-llm-eval --base-url ... --model ... --extra 'stop:=["\\n"]'
+llm-serve-test --base-url ... --model ... --extra "temperature:=0.7"
+llm-serve-test --base-url ... --model ... --extra 'stop:=["\n"]'
 ```
 
 ## What Gets Tested
@@ -96,7 +96,7 @@ llm-eval --base-url ... --model ... --extra 'stop:=["\\n"]'
 - `agentic_reasoning_in_template` - Reasoning included when continuing from tool result
 - `agentic_reasoning_not_in_user_template` - Reasoning excluded when last message is from user
 
-All evals have streaming variants (e.g. `single_tool_call_streaming`).
+All tests have streaming variants (e.g. `single_tool_call_streaming`).
 
 ## Logs
 
@@ -124,8 +124,8 @@ Use `--verbose` to also print full request/response details to the terminal.
 ## Example Output
 
 ```
-LLM Eval Suite
-==============
+LLM Serving Tests
+=================
 Server: http://localhost:8080/v1
 Model: deepseek-r1
 

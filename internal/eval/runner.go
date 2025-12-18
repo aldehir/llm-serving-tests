@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aldehir/llm-evals/internal/client"
-	evallog "github.com/aldehir/llm-evals/internal/log"
+	"github.com/aldehir/llm-serving-tests/internal/client"
+	evallog "github.com/aldehir/llm-serving-tests/internal/log"
 )
 
 // Eval class constants.
