@@ -27,10 +27,10 @@ func AllClasses() []string {
 }
 
 // ClassMatches returns true if the eval's class is compatible with the requested class.
-// Class hierarchy: interleaved > reasoning > standard
-// - interleaved includes reasoning tests (interleaved models support reasoning)
-// - reasoning includes only reasoning tests
-// - standard includes only standard tests
+// Class hierarchy: standard < reasoning < interleaved
+// - standard: only standard tests
+// - reasoning: standard + reasoning tests
+// - interleaved: standard + reasoning + interleaved tests
 func ClassMatches(evalClass, requestedClass string) bool {
 	if requestedClass == "" {
 		return true
@@ -38,8 +38,12 @@ func ClassMatches(evalClass, requestedClass string) bool {
 	if evalClass == requestedClass {
 		return true
 	}
-	// interleaved class also runs reasoning tests
-	if requestedClass == ClassInterleaved && evalClass == ClassReasoning {
+	// reasoning class also runs standard tests
+	if requestedClass == ClassReasoning && evalClass == ClassStandard {
+		return true
+	}
+	// interleaved class runs standard + reasoning tests
+	if requestedClass == ClassInterleaved && (evalClass == ClassStandard || evalClass == ClassReasoning) {
 		return true
 	}
 	return false

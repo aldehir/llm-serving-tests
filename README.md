@@ -36,11 +36,11 @@ Optional flags:
 
 ## Test Classes
 
-Not all models support all features. Use `--class` to run only relevant tests:
+Not all models support all features. Use `--class` to run tests appropriate for your model type. Classes are hierarchical (standard < reasoning < interleaved):
 
 - **standard** - Basic functionality: tool calling, JSON schema. Works with any model.
-- **reasoning** - Requires `reasoning_content` support (thinking tokens). For reasoning models like DeepSeek R1.
-- **interleaved** - Multi-turn agentic flows where reasoning must be sent back to the server. Also includes all reasoning tests (since interleaved models support reasoning).
+- **reasoning** - Includes standard tests, plus tests requiring `reasoning_content` support. For reasoning models like DeepSeek R1.
+- **interleaved** - Includes all tests. Adds multi-turn agentic flows where reasoning must be sent back to the server.
 
 ```bash
 # Test a standard model
