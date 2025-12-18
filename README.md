@@ -78,6 +78,9 @@ llm-serve-test --base-url ... --model ... --extra 'stop:=["\n"]'
 
 ## What Gets Tested
 
+**Basic**
+- `chat_completion` - Verifies model returns non-empty content
+
 **Reasoning**
 - `reasoning_present` - Verifies `reasoning_content` is populated
 - `reasoning_not_leaked` - Confirms reasoning doesn't leak into main `content`

@@ -156,6 +156,9 @@ func (r *Runner) printResult(result Result) {
 func AllEvals() []Eval {
 	var evals []Eval
 
+	// Basic evals
+	evals = append(evals, basicEvals()...)
+
 	// Reasoning evals
 	evals = append(evals, reasoningEvals()...)
 
