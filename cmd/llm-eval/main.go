@@ -89,7 +89,7 @@ func runEvals(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize logger
-	logger, err := evallog.New()
+	logger, err := evallog.New(model)
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}

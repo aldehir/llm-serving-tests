@@ -23,9 +23,10 @@ type logFile struct {
 }
 
 // New creates a new Logger, creating the log directory.
-func New() (*Logger, error) {
+// Logs are grouped by model name: logs/<model>/<timestamp>/
+func New(model string) (*Logger, error) {
 	timestamp := time.Now().Format("2006-01-02_150405")
-	dir := filepath.Join("logs", timestamp)
+	dir := filepath.Join("logs", model, timestamp)
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("create log directory: %w", err)
