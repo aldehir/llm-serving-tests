@@ -175,6 +175,17 @@ func (c *Client) ChatCompletionStream(ctx context.Context, req ChatCompletionReq
 	// Log streamed response
 	if c.logger != nil {
 		c.logger.LogStreamResponse(resp.StatusCode, rawChunks)
+
+		// Write JSONL for replay
+		if len(result.Chunks) > 0 {
+			var jsonlBuf bytes.Buffer
+			for _, chunk := range result.Chunks {
+				line, _ := json.Marshal(chunk)
+				jsonlBuf.Write(line)
+				jsonlBuf.WriteByte('\n')
+			}
+			c.logger.LogStreamChunks(jsonlBuf.Bytes())
+		}
 	}
 
 	return result, nil

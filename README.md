@@ -124,6 +124,32 @@ Logs written to: ./logs/deepseek-r1/2025-01-15_143022/
 
 Use `--verbose` to also print full request/response details to the terminal.
 
+Streaming tests also generate `.stream.jsonl` files for replay (see below).
+
+## Replay Streaming Responses
+
+Streaming tests capture chunks to JSONL files for later visualization. This helps verify streaming output is coherent.
+
+Replay a single file:
+
+```bash
+llm-serve-test replay logs/deepseek-r1/2025-01-15_143022/reasoning_present_streaming.stream.jsonl
+```
+
+Replay all streaming captures from a log directory:
+
+```bash
+llm-serve-test replay-all logs/deepseek-r1/2025-01-15_143022/
+```
+
+Options:
+- `--delay` - Time between chunks (default: 10ms)
+
+The output is styled:
+- **Reasoning** - Dark gray, italic, prefixed with `[thinking]`
+- **Content** - Regular text
+- **Tool calls** - Yellow, with `[tool: name]` header
+
 ## Example Output
 
 ```

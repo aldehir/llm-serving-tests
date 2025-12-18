@@ -18,8 +18,9 @@ type Logger struct {
 }
 
 type logFile struct {
-	name string
-	buf  bytes.Buffer
+	name         string
+	buf          bytes.Buffer
+	streamChunks []byte // JSONL content for streaming responses
 }
 
 // New creates a new Logger, creating the log directory.
@@ -98,6 +99,18 @@ func (l *Logger) LogStreamResponse(status int, rawChunks []byte) {
 	l.current.buf.WriteString("\n")
 }
 
+// LogStreamChunks stores JSONL-formatted stream chunks for replay.
+func (l *Logger) LogStreamChunks(jsonl []byte) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.current == nil {
+		return
+	}
+
+	l.current.streamChunks = jsonl
+}
+
 // LogError logs an error.
 func (l *Logger) LogError(err error) {
 	l.mu.Lock()
@@ -157,6 +170,14 @@ func (l *Logger) EndEval() error {
 	filename := filepath.Join(l.dir, l.current.name+".log")
 	if err := os.WriteFile(filename, l.current.buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("write log file: %w", err)
+	}
+
+	// Write JSONL file for streaming responses
+	if len(l.current.streamChunks) > 0 {
+		jsonlFile := filepath.Join(l.dir, l.current.name+".stream.jsonl")
+		if err := os.WriteFile(jsonlFile, l.current.streamChunks, 0644); err != nil {
+			return fmt.Errorf("write stream jsonl file: %w", err)
+		}
 	}
 
 	l.current = nil

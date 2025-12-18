@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/aldehir/llm-serving-tests/internal/client"
@@ -23,6 +27,8 @@ var (
 	filter  string
 	class   string
 	extra   []string
+
+	replayDelay time.Duration
 )
 
 func main() {
@@ -45,6 +51,22 @@ var listCmd = &cobra.Command{
 	Run:   listTests,
 }
 
+var replayCmd = &cobra.Command{
+	Use:   "replay <jsonl-file>",
+	Short: "Replay streaming response from JSONL capture",
+	Long:  "Visualize a captured streaming response by rendering each chunk with simulated delay.",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runReplay,
+}
+
+var replayAllCmd = &cobra.Command{
+	Use:   "replay-all <log-dir>",
+	Short: "Replay all streaming responses from a log directory",
+	Long:  "Replay all .stream.jsonl files from a log directory in sequence.",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runReplayAll,
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&baseURL, "base-url", "", "Server base URL (required for run)")
 	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key (optional)")
@@ -55,7 +77,12 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only tests of specified class (standard, reasoning, interleaved)")
 	rootCmd.PersistentFlags().StringArrayVarP(&extra, "extra", "e", nil, "Extra request field (key=value or key:=json), can be repeated")
 
+	replayCmd.Flags().DurationVar(&replayDelay, "delay", 10*time.Millisecond, "Delay between chunks")
+	replayAllCmd.Flags().DurationVar(&replayDelay, "delay", 10*time.Millisecond, "Delay between chunks")
+
 	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(replayCmd)
+	rootCmd.AddCommand(replayAllCmd)
 }
 
 func runEvals(cmd *cobra.Command, args []string) error {
@@ -202,4 +229,159 @@ func parseExtraFields(extras []string) (map[string]any, error) {
 	}
 
 	return result, nil
+}
+
+// runReplay replays a streaming response from a JSONL capture file.
+func runReplay(cmd *cobra.Command, args []string) error {
+	return replayFile(args[0])
+}
+
+// runReplayAll replays all streaming responses from a log directory.
+func runReplayAll(cmd *cobra.Command, args []string) error {
+	dir := args[0]
+
+	pattern := filepath.Join(dir, "*.stream.jsonl")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("glob: %w", err)
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("no .stream.jsonl files found in %s", dir)
+	}
+
+	sort.Strings(files)
+
+	headerStyle := color.New(color.FgCyan, color.Bold)
+
+	for i, file := range files {
+		// Extract eval name from filename (remove .stream.jsonl suffix)
+		base := filepath.Base(file)
+		evalName := strings.TrimSuffix(base, ".stream.jsonl")
+
+		if i > 0 {
+			fmt.Println()
+		}
+		headerStyle.Printf("=== %s ===\n", evalName)
+
+		if err := replayFile(file); err != nil {
+			return fmt.Errorf("replay %s: %w", evalName, err)
+		}
+	}
+
+	return nil
+}
+
+// replayFile replays a single JSONL file.
+func replayFile(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("open file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	renderer := newStreamRenderer()
+
+	for scanner.Scan() {
+		var chunk client.ChatCompletionChunk
+		if err := json.Unmarshal(scanner.Bytes(), &chunk); err != nil {
+			return fmt.Errorf("parse chunk: %w", err)
+		}
+
+		renderer.render(chunk)
+		time.Sleep(replayDelay)
+	}
+
+	renderer.finish()
+	return scanner.Err()
+}
+
+// streamRenderer handles progressive display of streaming chunks.
+type streamRenderer struct {
+	inReasoning bool
+	inContent   bool
+	toolCalls   map[int]*toolState
+
+	thinkingStyle *color.Color
+	toolStyle     *color.Color
+}
+
+type toolState struct {
+	headerPrinted bool
+	name          string
+}
+
+func newStreamRenderer() *streamRenderer {
+	return &streamRenderer{
+		toolCalls:     make(map[int]*toolState),
+		thinkingStyle: color.New(color.FgHiBlack, color.Italic),
+		toolStyle:     color.New(color.FgYellow),
+	}
+}
+
+func (r *streamRenderer) render(chunk client.ChatCompletionChunk) {
+	if len(chunk.Choices) == 0 {
+		return
+	}
+
+	delta := chunk.Choices[0].Delta
+
+	// Handle reasoning content
+	if delta.ReasoningContent != "" {
+		if !r.inReasoning {
+			r.thinkingStyle.Print("[thinking] ")
+			r.inReasoning = true
+		}
+		r.thinkingStyle.Print(delta.ReasoningContent)
+	}
+
+	// Handle regular content
+	if delta.Content != "" {
+		if r.inReasoning {
+			fmt.Println() // End reasoning line
+			fmt.Println() // Blank line before content
+			r.inReasoning = false
+		}
+		r.inContent = true
+		fmt.Print(delta.Content)
+	}
+
+	// Handle tool calls
+	for _, tc := range delta.ToolCalls {
+		state := r.toolCalls[tc.Index]
+		if state == nil {
+			state = &toolState{}
+			r.toolCalls[tc.Index] = state
+		}
+
+		// Store name when we first see it
+		if tc.Function.Name != "" {
+			state.name = tc.Function.Name
+		}
+
+		// Print header before first argument chunk
+		if tc.Function.Arguments != "" && !state.headerPrinted {
+			if r.inReasoning || r.inContent {
+				fmt.Println()
+				fmt.Println()
+				r.inReasoning = false
+				r.inContent = false
+			} else if len(r.toolCalls) > 1 {
+				// Separate multiple tool calls with a newline
+				fmt.Println()
+			}
+			r.toolStyle.Printf("[tool: %s]\n", state.name)
+			state.headerPrinted = true
+		}
+
+		// Stream arguments
+		if tc.Function.Arguments != "" {
+			r.toolStyle.Print(tc.Function.Arguments)
+		}
+	}
+}
+
+func (r *streamRenderer) finish() {
+	fmt.Println()
 }
