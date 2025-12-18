@@ -167,15 +167,22 @@ func (c *Client) setHeaders(req *http.Request) {
 
 // ApplyTemplate calls the /apply-template endpoint to render messages into a prompt.
 // This is specific to llama.cpp servers.
+// Note: This endpoint is at the root, not under /v1.
 func (c *Client) ApplyTemplate(ctx context.Context, messages []Message) (string, error) {
-	reqData := ApplyTemplateRequest{Messages: messages}
+	reqData := ApplyTemplateRequest{
+		Model:    c.model,
+		Messages: messages,
+	}
 
 	reqBody, err := json.Marshal(reqData)
 	if err != nil {
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/apply-template", bytes.NewReader(reqBody))
+	// Strip /v1 suffix if present - apply-template is at the root
+	baseURL := strings.TrimSuffix(c.baseURL, "/v1")
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/apply-template", bytes.NewReader(reqBody))
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
 	}

@@ -4,14 +4,15 @@ import "encoding/json"
 
 // ChatCompletionRequest represents a chat completion request.
 type ChatCompletionRequest struct {
-	Model          string          `json:"model"`
-	Messages       []Message       `json:"messages"`
-	Tools          []Tool          `json:"tools,omitempty"`
-	ToolChoice     any             `json:"tool_choice,omitempty"`
-	ResponseFormat *ResponseFormat `json:"response_format,omitempty"`
-	Stream         bool            `json:"stream,omitempty"`
-	StreamOptions  *StreamOptions  `json:"stream_options,omitempty"`
-	MaxTokens      int             `json:"max_tokens,omitempty"`
+	Model             string          `json:"model"`
+	Messages          []Message       `json:"messages"`
+	Tools             []Tool          `json:"tools,omitempty"`
+	ToolChoice        any             `json:"tool_choice,omitempty"`
+	ParallelToolCalls bool            `json:"parallel_tool_calls,omitempty"`
+	ResponseFormat    *ResponseFormat `json:"response_format,omitempty"`
+	Stream            bool            `json:"stream,omitempty"`
+	StreamOptions     *StreamOptions  `json:"stream_options,omitempty"`
+	MaxTokens         int             `json:"max_tokens,omitempty"`
 }
 
 // Message represents a chat message.
@@ -141,6 +142,7 @@ type ToolCallFunctionDelta struct {
 
 // ApplyTemplateRequest represents a request to the /apply-template endpoint.
 type ApplyTemplateRequest struct {
+	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 }
 

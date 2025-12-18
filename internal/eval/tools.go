@@ -195,7 +195,8 @@ func (e *parallelToolCallEval) Run(ctx context.Context, c *client.Client) Result
 				},
 			},
 		},
-		ToolChoice: "auto",
+		ToolChoice:        "auto",
+		ParallelToolCalls: true,
 	}
 
 	var toolCalls []client.ToolCall
