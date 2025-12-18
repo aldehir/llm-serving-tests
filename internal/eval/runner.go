@@ -48,7 +48,7 @@ func NewRunner(c *client.Client, cfg RunnerConfig) *Runner {
 	return &Runner{
 		client: c,
 		config: cfg,
-		evals:  allEvals(),
+		evals:  AllEvals(),
 	}
 }
 
@@ -105,8 +105,8 @@ func (r *Runner) printResult(result Result) {
 	}
 }
 
-// allEvals returns all registered evals.
-func allEvals() []Eval {
+// AllEvals returns all registered evals.
+func AllEvals() []Eval {
 	var evals []Eval
 
 	// Reasoning evals
