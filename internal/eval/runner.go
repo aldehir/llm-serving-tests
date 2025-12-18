@@ -26,6 +26,25 @@ func AllClasses() []string {
 	return []string{ClassStandard, ClassReasoning, ClassInterleaved}
 }
 
+// ClassMatches returns true if the eval's class is compatible with the requested class.
+// Class hierarchy: interleaved > reasoning > standard
+// - interleaved includes reasoning tests (interleaved models support reasoning)
+// - reasoning includes only reasoning tests
+// - standard includes only standard tests
+func ClassMatches(evalClass, requestedClass string) bool {
+	if requestedClass == "" {
+		return true
+	}
+	if evalClass == requestedClass {
+		return true
+	}
+	// interleaved class also runs reasoning tests
+	if requestedClass == ClassInterleaved && evalClass == ClassReasoning {
+		return true
+	}
+	return false
+}
+
 // Eval defines the interface for an evaluation.
 type Eval interface {
 	// Name returns the name of the eval.
@@ -83,7 +102,7 @@ func (r *Runner) Run() []Result {
 		}
 
 		// Apply class filter
-		if r.config.Class != "" && e.Class() != r.config.Class {
+		if !ClassMatches(e.Class(), r.config.Class) {
 			continue
 		}
 

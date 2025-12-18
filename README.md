@@ -40,7 +40,7 @@ Not all models support all features. Use `--class` to run only relevant tests:
 
 - **standard** - Basic functionality: tool calling, JSON schema. Works with any model.
 - **reasoning** - Requires `reasoning_content` support (thinking tokens). For reasoning models like DeepSeek R1.
-- **interleaved** - Multi-turn agentic flows where reasoning must be sent back to the server. Requires interleaved reasoning support in the chat template.
+- **interleaved** - Multi-turn agentic flows where reasoning must be sent back to the server. Also includes all reasoning tests (since interleaved models support reasoning).
 
 ```bash
 # Test a standard model

@@ -150,7 +150,7 @@ func listTests(cmd *cobra.Command, args []string) {
 		}
 
 		// Apply class filter if specified
-		if class != "" && t.Class() != class {
+		if !eval.ClassMatches(t.Class(), class) {
 			continue
 		}
 
