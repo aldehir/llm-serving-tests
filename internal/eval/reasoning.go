@@ -35,6 +35,10 @@ func (e *reasoningPresentEval) Category() string {
 	return reasoningCategory
 }
 
+func (e *reasoningPresentEval) Class() string {
+	return ClassReasoning
+}
+
 func (e *reasoningPresentEval) Run(ctx context.Context, c *client.Client) Result {
 	// Use a prompt that should trigger reasoning
 	req := client.ChatCompletionRequest{
@@ -121,6 +125,10 @@ func (e *reasoningNotLeakedEval) Name() string {
 
 func (e *reasoningNotLeakedEval) Category() string {
 	return reasoningCategory
+}
+
+func (e *reasoningNotLeakedEval) Class() string {
+	return ClassReasoning
 }
 
 func (e *reasoningNotLeakedEval) Run(ctx context.Context, c *client.Client) Result {

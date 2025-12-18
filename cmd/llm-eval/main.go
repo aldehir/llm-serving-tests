@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -20,6 +21,8 @@ var (
 	timeout time.Duration
 	verbose bool
 	filter  string
+	class   string
+	extra   []string
 )
 
 func main() {
@@ -49,6 +52,8 @@ func init() {
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "Request timeout")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show full request/response for all evals")
 	rootCmd.PersistentFlags().StringVar(&filter, "filter", "", "Run only evals matching pattern")
+	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only evals of specified class (standard, reasoning, interleaved)")
+	rootCmd.PersistentFlags().StringArrayVarP(&extra, "extra", "e", nil, "Extra request field (key=value or key:=json), can be repeated")
 
 	rootCmd.AddCommand(listCmd)
 }
@@ -60,6 +65,27 @@ func runEvals(cmd *cobra.Command, args []string) error {
 
 	if model == "" {
 		return fmt.Errorf("--model is required")
+	}
+
+	// Validate class if specified
+	if class != "" {
+		validClasses := eval.AllClasses()
+		valid := false
+		for _, c := range validClasses {
+			if class == c {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return fmt.Errorf("invalid --class %q (valid: %s)", class, strings.Join(validClasses, ", "))
+		}
+	}
+
+	// Parse extra fields
+	extraFields, err := parseExtraFields(extra)
+	if err != nil {
+		return fmt.Errorf("invalid --extra flag: %w", err)
 	}
 
 	// Initialize logger
@@ -76,12 +102,14 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		Model:   model,
 		Timeout: timeout,
 		Logger:  logger,
+		Extra:   extraFields,
 	})
 
 	// Run evals
 	runner := eval.NewRunner(c, eval.RunnerConfig{
 		Verbose: verbose,
 		Filter:  filter,
+		Class:   class,
 		Logger:  logger,
 	})
 
@@ -116,8 +144,13 @@ func listEvals(cmd *cobra.Command, args []string) {
 
 	currentCategory := ""
 	for _, e := range evals {
-		// Apply filter if specified
+		// Apply name filter if specified
 		if filter != "" && !strings.Contains(e.Name(), filter) {
+			continue
+		}
+
+		// Apply class filter if specified
+		if class != "" && e.Class() != class {
 			continue
 		}
 
@@ -130,6 +163,43 @@ func listEvals(cmd *cobra.Command, args []string) {
 			fmt.Println(currentCategory)
 		}
 
-		fmt.Printf("  %s\n", e.Name())
+		fmt.Printf("  %-45s [%s]\n", e.Name(), e.Class())
 	}
+}
+
+// parseExtraFields parses --extra flags into a map.
+// Supports two formats:
+//   - key=value  (value is a string)
+//   - key:=json  (value is parsed as JSON)
+func parseExtraFields(extras []string) (map[string]any, error) {
+	if len(extras) == 0 {
+		return nil, nil
+	}
+
+	result := make(map[string]any)
+	for _, e := range extras {
+		// Check for JSON value format (key:=value)
+		if idx := strings.Index(e, ":="); idx > 0 {
+			key := e[:idx]
+			value := e[idx+2:]
+			var parsed any
+			if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+				return nil, fmt.Errorf("invalid JSON for %q: %w", key, err)
+			}
+			result[key] = parsed
+			continue
+		}
+
+		// Check for string value format (key=value)
+		if idx := strings.Index(e, "="); idx > 0 {
+			key := e[:idx]
+			value := e[idx+1:]
+			result[key] = value
+			continue
+		}
+
+		return nil, fmt.Errorf("invalid format %q (expected key=value or key:=json)", e)
+	}
+
+	return result, nil
 }

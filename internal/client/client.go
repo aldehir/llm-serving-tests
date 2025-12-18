@@ -20,6 +20,8 @@ type Config struct {
 	Model   string
 	Timeout time.Duration
 	Logger  *evallog.Logger
+	// Extra contains additional fields to include in all request payloads.
+	Extra map[string]any
 }
 
 // Client is an OpenAI-compatible API client.
@@ -27,6 +29,7 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	model      string
+	extra      map[string]any
 	httpClient *http.Client
 	logger     *evallog.Logger
 }
@@ -37,10 +40,27 @@ func New(cfg Config) *Client {
 		baseURL: strings.TrimSuffix(cfg.BaseURL, "/"),
 		apiKey:  cfg.APIKey,
 		model:   cfg.Model,
+		extra:   cfg.Extra,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
 		logger: cfg.Logger,
+	}
+}
+
+// applyExtra merges the client's extra fields into the request.
+func (c *Client) applyExtra(req *ChatCompletionRequest) {
+	if len(c.extra) == 0 {
+		return
+	}
+	if req.Extra == nil {
+		req.Extra = make(map[string]any)
+	}
+	for k, v := range c.extra {
+		// Don't override if the request already has this key
+		if _, exists := req.Extra[k]; !exists {
+			req.Extra[k] = v
+		}
 	}
 }
 
@@ -53,6 +73,7 @@ func (c *Client) Model() string {
 func (c *Client) ChatCompletion(ctx context.Context, req ChatCompletionRequest) (*ChatCompletionResponse, error) {
 	req.Model = c.model
 	req.Stream = false
+	c.applyExtra(&req)
 
 	reqBody, err := json.Marshal(req)
 	if err != nil {
@@ -113,6 +134,7 @@ func (c *Client) ChatCompletionStream(ctx context.Context, req ChatCompletionReq
 	if req.StreamOptions == nil {
 		req.StreamOptions = &StreamOptions{IncludeUsage: true}
 	}
+	c.applyExtra(&req)
 
 	reqBody, err := json.Marshal(req)
 	if err != nil {

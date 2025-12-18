@@ -40,6 +40,10 @@ func (e *singleToolCallEval) Category() string {
 	return toolCategory
 }
 
+func (e *singleToolCallEval) Class() string {
+	return ClassStandard
+}
+
 func (e *singleToolCallEval) Run(ctx context.Context, c *client.Client) Result {
 	req := client.ChatCompletionRequest{
 		Messages: []client.Message{
@@ -176,6 +180,10 @@ func (e *parallelToolCallEval) Category() string {
 	return toolCategory
 }
 
+func (e *parallelToolCallEval) Class() string {
+	return ClassStandard
+}
+
 func (e *parallelToolCallEval) Run(ctx context.Context, c *client.Client) Result {
 	req := client.ChatCompletionRequest{
 		Messages: []client.Message{
@@ -302,6 +310,10 @@ func (e *requiredToolCallEval) Category() string {
 	return toolCategory
 }
 
+func (e *requiredToolCallEval) Class() string {
+	return ClassStandard
+}
+
 func (e *requiredToolCallEval) Run(ctx context.Context, c *client.Client) Result {
 	req := client.ChatCompletionRequest{
 		Messages: []client.Message{
@@ -418,6 +430,10 @@ func (e *requiredToolCallWithReasoningEval) Name() string {
 
 func (e *requiredToolCallWithReasoningEval) Category() string {
 	return toolCategory
+}
+
+func (e *requiredToolCallWithReasoningEval) Class() string {
+	return ClassReasoning
 }
 
 func (e *requiredToolCallWithReasoningEval) Run(ctx context.Context, c *client.Client) Result {

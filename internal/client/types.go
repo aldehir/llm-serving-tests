@@ -13,6 +13,48 @@ type ChatCompletionRequest struct {
 	Stream            bool            `json:"stream,omitempty"`
 	StreamOptions     *StreamOptions  `json:"stream_options,omitempty"`
 	MaxTokens         int             `json:"max_tokens,omitempty"`
+
+	// Extra contains additional fields to include in the request JSON.
+	// These are flattened into the root of the request object.
+	Extra map[string]any `json:"-"`
+}
+
+// MarshalJSON implements custom JSON marshaling to flatten Extra fields.
+func (r ChatCompletionRequest) MarshalJSON() ([]byte, error) {
+	// Create a map with all the standard fields
+	m := make(map[string]any)
+
+	m["model"] = r.Model
+	m["messages"] = r.Messages
+
+	if len(r.Tools) > 0 {
+		m["tools"] = r.Tools
+	}
+	if r.ToolChoice != nil {
+		m["tool_choice"] = r.ToolChoice
+	}
+	if r.ParallelToolCalls {
+		m["parallel_tool_calls"] = r.ParallelToolCalls
+	}
+	if r.ResponseFormat != nil {
+		m["response_format"] = r.ResponseFormat
+	}
+	if r.Stream {
+		m["stream"] = r.Stream
+	}
+	if r.StreamOptions != nil {
+		m["stream_options"] = r.StreamOptions
+	}
+	if r.MaxTokens > 0 {
+		m["max_tokens"] = r.MaxTokens
+	}
+
+	// Merge extra fields (they can override standard fields if needed)
+	for k, v := range r.Extra {
+		m[k] = v
+	}
+
+	return json.Marshal(m)
 }
 
 // Message represents a chat message.

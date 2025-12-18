@@ -49,6 +49,10 @@ func (e *agenticToolCallEval) Category() string {
 	return agenticCategory
 }
 
+func (e *agenticToolCallEval) Class() string {
+	return ClassInterleaved
+}
+
 func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result {
 	// Turn 1: User asks question requiring tool use
 	req1 := client.ChatCompletionRequest{
@@ -169,6 +173,10 @@ func (e *agenticReasoningInTemplateEval) Category() string {
 	return agenticCategory
 }
 
+func (e *agenticReasoningInTemplateEval) Class() string {
+	return ClassInterleaved
+}
+
 func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Client) Result {
 	// First, get reasoning content from the model
 	req1 := client.ChatCompletionRequest{
@@ -274,6 +282,10 @@ func (e *agenticReasoningNotInUserTemplateEval) Name() string {
 
 func (e *agenticReasoningNotInUserTemplateEval) Category() string {
 	return agenticCategory
+}
+
+func (e *agenticReasoningNotInUserTemplateEval) Class() string {
+	return ClassInterleaved
 }
 
 func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *client.Client) Result {

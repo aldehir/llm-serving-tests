@@ -35,6 +35,10 @@ func (e *jsonSchemaEval) Category() string {
 	return schemaCategory
 }
 
+func (e *jsonSchemaEval) Class() string {
+	return ClassStandard
+}
+
 func (e *jsonSchemaEval) Run(ctx context.Context, c *client.Client) Result {
 	// Define a simple schema for a person
 	schema := json.RawMessage(`{

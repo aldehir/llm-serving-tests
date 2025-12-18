@@ -10,12 +10,30 @@ import (
 	evallog "github.com/aldehir/llm-evals/internal/log"
 )
 
+// Eval class constants.
+const (
+	// ClassStandard is for evals that work on any OpenAI-compatible model.
+	ClassStandard = "standard"
+	// ClassReasoning is for evals that require reasoning_content extraction.
+	ClassReasoning = "reasoning"
+	// ClassInterleaved is for evals that require interleaved reasoning
+	// (reasoning_content sent back in multi-turn conversations).
+	ClassInterleaved = "interleaved"
+)
+
+// AllClasses returns all valid eval classes.
+func AllClasses() []string {
+	return []string{ClassStandard, ClassReasoning, ClassInterleaved}
+}
+
 // Eval defines the interface for an evaluation.
 type Eval interface {
 	// Name returns the name of the eval.
 	Name() string
 	// Category returns the category (e.g., "Reasoning", "Tool Calling").
 	Category() string
+	// Class returns the model class required (e.g., "standard", "reasoning", "interleaved").
+	Class() string
 	// Run executes the eval and returns the result.
 	Run(ctx context.Context, c *client.Client) Result
 }
@@ -33,6 +51,7 @@ type Result struct {
 type RunnerConfig struct {
 	Verbose bool
 	Filter  string
+	Class   string
 	Logger  *evallog.Logger
 }
 
@@ -58,8 +77,13 @@ func (r *Runner) Run() []Result {
 	currentCategory := ""
 
 	for _, e := range r.evals {
-		// Apply filter
+		// Apply name filter
 		if r.config.Filter != "" && !strings.Contains(e.Name(), r.config.Filter) {
+			continue
+		}
+
+		// Apply class filter
+		if r.config.Class != "" && e.Class() != r.config.Class {
 			continue
 		}
 
