@@ -43,6 +43,9 @@ func New(cfg Config) *Client {
 		extra:   cfg.Extra,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
+			Transport: &http.Transport{
+				ResponseHeaderTimeout: 30 * time.Second,
+			},
 		},
 		logger: cfg.Logger,
 	}
