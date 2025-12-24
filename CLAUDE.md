@@ -45,6 +45,7 @@ logs/                  Test run output (gitignored)
    - `Run(ctx, client)` - returns `Result{Passed, Message}`
 3. Register in the category's `*Evals()` function (e.g., `toolEvals()`)
 4. Add streaming variant if applicable (append `_streaming` to name)
+5. Update README.md if adding new tests, CLI flags, or changing behavior
 
 ## Class Hierarchy
 

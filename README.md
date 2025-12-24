@@ -32,6 +32,7 @@ Optional flags:
 - `--verbose` / `-v` - Show full request/response for all tests
 - `--filter` - Run only tests matching a pattern (e.g. `--filter streaming`)
 - `--class` - Run only tests of a specific class: `standard`, `reasoning`, or `interleaved`
+- `--all` / `-a` - Include tests that are disabled by default
 - `--extra` / `-e` - Add custom fields to request payloads (repeatable)
 
 ## Test Classes
@@ -94,12 +95,13 @@ llm-serve-test --base-url ... --model ... --extra 'stop:=["\n"]'
 **Structured Output**
 - `json_schema` - Response conforms to requested JSON schema
 
-**Agentic (Multi-Turn)**
+**Agentic (Multi-Turn)** - all agentic tests use streaming
 - `agentic_tool_call` - Full tool use loop with reasoning
 - `agentic_reasoning_in_template` - Reasoning included when continuing from tool result
 - `agentic_reasoning_not_in_user_template` - Reasoning excluded when last message is from user
+- `agentic_long_response` - Long text generation after tool call (disabled by default, use `--all` to include)
 
-All tests have streaming variants (e.g. `single_tool_call_streaming`).
+Most tests have streaming variants (e.g. `single_tool_call_streaming`).
 
 ## Logs
 
