@@ -26,6 +26,7 @@ var (
 	verbose bool
 	filter  string
 	class   string
+	all     bool
 	extra   []string
 
 	replayDelay time.Duration
@@ -75,6 +76,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show full request/response for all tests")
 	rootCmd.PersistentFlags().StringVar(&filter, "filter", "", "Run only tests matching pattern")
 	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only tests of specified class (standard, reasoning, interleaved)")
+	rootCmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "Include tests that are disabled by default")
 	rootCmd.PersistentFlags().StringArrayVarP(&extra, "extra", "e", nil, "Extra request field (key=value or key:=json), can be repeated")
 
 	replayCmd.Flags().DurationVar(&replayDelay, "delay", 10*time.Millisecond, "Delay between chunks")
@@ -137,6 +139,7 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		Verbose: verbose,
 		Filter:  filter,
 		Class:   class,
+		All:     all,
 		Logger:  logger,
 	})
 
@@ -181,6 +184,12 @@ func listTests(cmd *cobra.Command, args []string) {
 			continue
 		}
 
+		// Skip disabled-by-default tests unless --all is set
+		isDisabled := eval.IsDefaultDisabled(t)
+		if !all && isDisabled {
+			continue
+		}
+
 		// Print category header
 		if t.Category() != currentCategory {
 			if currentCategory != "" {
@@ -190,7 +199,12 @@ func listTests(cmd *cobra.Command, args []string) {
 			fmt.Println(currentCategory)
 		}
 
-		fmt.Printf("  %-45s [%s]\n", t.Name(), t.Class())
+		// Show disabled indicator
+		disabledMarker := ""
+		if isDisabled {
+			disabledMarker = " (disabled by default)"
+		}
+		fmt.Printf("  %-45s [%s]%s\n", t.Name(), t.Class(), disabledMarker)
 	}
 }
 

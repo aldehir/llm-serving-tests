@@ -425,6 +425,10 @@ func (e *agenticLongResponseEval) Class() string {
 	return ClassStandard
 }
 
+func (e *agenticLongResponseEval) IsDefaultDisabled() bool {
+	return true
+}
+
 func (e *agenticLongResponseEval) Run(ctx context.Context, c *client.Client) Result {
 	// Turn 1: User asks to fetch and explain documentation
 	req1 := client.ChatCompletionRequest{

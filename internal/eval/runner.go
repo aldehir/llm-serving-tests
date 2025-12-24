@@ -70,11 +70,28 @@ type Result struct {
 	Duration time.Duration
 }
 
+// DefaultDisabled is an optional interface for evals that are disabled by default.
+// Evals implementing this interface with IsDefaultDisabled() returning true will
+// only run when --all is specified.
+type DefaultDisabled interface {
+	IsDefaultDisabled() bool
+}
+
+// IsDefaultDisabled returns true if the eval is disabled by default.
+// This checks if the eval implements the DefaultDisabled interface.
+func IsDefaultDisabled(e Eval) bool {
+	if dd, ok := e.(DefaultDisabled); ok {
+		return dd.IsDefaultDisabled()
+	}
+	return false
+}
+
 // RunnerConfig configures the runner.
 type RunnerConfig struct {
 	Verbose bool
 	Filter  string
 	Class   string
+	All     bool // Include evals that are disabled by default
 	Logger  *evallog.Logger
 }
 
@@ -107,6 +124,11 @@ func (r *Runner) Run() []Result {
 
 		// Apply class filter
 		if !ClassMatches(e.Class(), r.config.Class) {
+			continue
+		}
+
+		// Skip disabled-by-default evals unless --all is set
+		if !r.config.All && IsDefaultDisabled(e) {
 			continue
 		}
 
