@@ -64,7 +64,7 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		ToolChoice: "auto",
 	}
 
-	resp1, err := c.ChatCompletion(ctx, req1)
+	result1, err := c.ChatCompletionStream(ctx, req1)
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -74,19 +74,8 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		}
 	}
 
-	if len(resp1.Choices) == 0 {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 1: no choices in response",
-		}
-	}
-
-	msg1 := resp1.Choices[0].Message
-
 	// Verify we got a tool call
-	if len(msg1.ToolCalls) == 0 {
+	if len(result1.ToolCalls) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -95,7 +84,7 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		}
 	}
 
-	tc := msg1.ToolCalls[0]
+	tc := result1.ToolCalls[0]
 	if tc.Function.Name != "get_weather" {
 		return Result{
 			Name:     e.Name(),
@@ -111,8 +100,8 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 			{Role: "user", Content: "What's the weather in San Francisco?"},
 			{
 				Role:             "assistant",
-				ReasoningContent: msg1.ReasoningContent,
-				ToolCalls:        msg1.ToolCalls,
+				ReasoningContent: result1.ReasoningContent,
+				ToolCalls:        result1.ToolCalls,
 			},
 			{
 				Role:       "tool",
@@ -124,7 +113,7 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		ToolChoice: "auto",
 	}
 
-	resp2, err := c.ChatCompletion(ctx, req2)
+	result2, err := c.ChatCompletionStream(ctx, req2)
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -134,19 +123,8 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		}
 	}
 
-	if len(resp2.Choices) == 0 {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 2: no choices in response",
-		}
-	}
-
-	msg2 := resp2.Choices[0].Message
-
 	// Verify we got a final response with content
-	if strings.TrimSpace(msg2.Content) == "" {
+	if strings.TrimSpace(result2.Content) == "" {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -188,7 +166,7 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		ToolChoice: "auto",
 	}
 
-	resp1, err := c.ChatCompletion(ctx, req1)
+	result1, err := c.ChatCompletionStream(ctx, req1)
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -198,19 +176,8 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		}
 	}
 
-	if len(resp1.Choices) == 0 {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "no choices in response",
-		}
-	}
-
-	msg1 := resp1.Choices[0].Message
-
 	// Need reasoning content for this test
-	if strings.TrimSpace(msg1.ReasoningContent) == "" {
+	if strings.TrimSpace(result1.ReasoningContent) == "" {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -219,7 +186,7 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		}
 	}
 
-	if len(msg1.ToolCalls) == 0 {
+	if len(result1.ToolCalls) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -228,15 +195,15 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		}
 	}
 
-	tc := msg1.ToolCalls[0]
+	tc := result1.ToolCalls[0]
 
 	// Build messages ending with tool result (should include reasoning in template)
 	messages := []client.Message{
 		{Role: "user", Content: "What's the weather in San Francisco?"},
 		{
 			Role:             "assistant",
-			ReasoningContent: msg1.ReasoningContent,
-			ToolCalls:        msg1.ToolCalls,
+			ReasoningContent: result1.ReasoningContent,
+			ToolCalls:        result1.ToolCalls,
 		},
 		{
 			Role:       "tool",
@@ -257,7 +224,7 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 	}
 
 	// Verify reasoning content appears in the prompt
-	if !strings.Contains(prompt, msg1.ReasoningContent) {
+	if !strings.Contains(prompt, result1.ReasoningContent) {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -299,7 +266,7 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		ToolChoice: "auto",
 	}
 
-	resp1, err := c.ChatCompletion(ctx, req1)
+	result1, err := c.ChatCompletionStream(ctx, req1)
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -309,19 +276,8 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		}
 	}
 
-	if len(resp1.Choices) == 0 {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "no choices in response",
-		}
-	}
-
-	msg1 := resp1.Choices[0].Message
-
 	// Need reasoning content for this test
-	if strings.TrimSpace(msg1.ReasoningContent) == "" {
+	if strings.TrimSpace(result1.ReasoningContent) == "" {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -330,7 +286,7 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		}
 	}
 
-	if len(msg1.ToolCalls) == 0 {
+	if len(result1.ToolCalls) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -339,15 +295,15 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		}
 	}
 
-	tc := msg1.ToolCalls[0]
+	tc := result1.ToolCalls[0]
 
 	// Build messages ending with USER message (reasoning should NOT appear)
 	messages := []client.Message{
 		{Role: "user", Content: "What's the weather in San Francisco?"},
 		{
 			Role:             "assistant",
-			ReasoningContent: msg1.ReasoningContent,
-			ToolCalls:        msg1.ToolCalls,
+			ReasoningContent: result1.ReasoningContent,
+			ToolCalls:        result1.ToolCalls,
 		},
 		{
 			Role:       "tool",
@@ -369,7 +325,7 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 	}
 
 	// Verify reasoning content does NOT appear in the prompt
-	if strings.Contains(prompt, msg1.ReasoningContent) {
+	if strings.Contains(prompt, result1.ReasoningContent) {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -496,7 +452,7 @@ Do not just summarize - provide a complete educational explanation.`,
 		ToolChoice: "auto",
 	}
 
-	resp1, err := c.ChatCompletion(ctx, req1)
+	result1, err := c.ChatCompletionStream(ctx, req1)
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -506,19 +462,8 @@ Do not just summarize - provide a complete educational explanation.`,
 		}
 	}
 
-	if len(resp1.Choices) == 0 {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 1: no choices in response",
-		}
-	}
-
-	msg1 := resp1.Choices[0].Message
-
 	// Verify we got a tool call
-	if len(msg1.ToolCalls) == 0 {
+	if len(result1.ToolCalls) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -527,7 +472,7 @@ Do not just summarize - provide a complete educational explanation.`,
 		}
 	}
 
-	tc := msg1.ToolCalls[0]
+	tc := result1.ToolCalls[0]
 	if tc.Function.Name != "fetch_documentation" {
 		return Result{
 			Name:     e.Name(),
@@ -560,8 +505,8 @@ Do not just summarize - provide a complete educational explanation.`,
 			},
 			{
 				Role:             "assistant",
-				ReasoningContent: msg1.ReasoningContent,
-				ToolCalls:        msg1.ToolCalls,
+				ReasoningContent: result1.ReasoningContent,
+				ToolCalls:        result1.ToolCalls,
 			},
 			{
 				Role:       "tool",
@@ -573,7 +518,7 @@ Do not just summarize - provide a complete educational explanation.`,
 		ToolChoice: "auto",
 	}
 
-	resp2, err := c.ChatCompletion(ctx, req2)
+	result2, err := c.ChatCompletionStream(ctx, req2)
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -583,29 +528,18 @@ Do not just summarize - provide a complete educational explanation.`,
 		}
 	}
 
-	if len(resp2.Choices) == 0 {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 2: no choices in response",
-		}
-	}
-
-	msg2 := resp2.Choices[0].Message
-
 	// Verify no additional tool calls (model should just explain)
-	if len(msg2.ToolCalls) > 0 {
+	if len(result2.ToolCalls) > 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
 			Passed:   false,
-			Message:  "turn 2: expected no tool calls, got " + msg2.ToolCalls[0].Function.Name,
+			Message:  "turn 2: expected no tool calls, got " + result2.ToolCalls[0].Function.Name,
 		}
 	}
 
 	// Verify we got substantial content (at least 2500 chars for comprehensive tutorial)
-	if len(msg2.Content) < 2500 {
+	if len(result2.Content) < 2500 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -621,7 +555,7 @@ Do not just summarize - provide a complete educational explanation.`,
 		"generation",
 	}
 
-	contentLower := strings.ToLower(msg2.Content)
+	contentLower := strings.ToLower(result2.Content)
 	for _, topic := range requiredTopics {
 		if !strings.Contains(contentLower, topic) {
 			return Result{
