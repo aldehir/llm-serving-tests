@@ -156,28 +156,40 @@ func (r *Runner) runSequential(evals []Eval) []Result {
 	return results
 }
 
-// runParallel executes evals concurrently with limited parallelism.
+// evalJob represents a job for the worker pool.
+type evalJob struct {
+	index int
+	eval  Eval
+}
+
+// runParallel executes evals concurrently using a worker pool.
 func (r *Runner) runParallel(evals []Eval) []Result {
 	results := make([]Result, len(evals))
-	sem := make(chan struct{}, r.config.Jobs)
+	jobs := make(chan evalJob)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	for i, e := range evals {
+	// Start workers
+	for range r.config.Jobs {
 		wg.Add(1)
-		go func(idx int, eval Eval) {
+		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			for job := range jobs {
+				result := r.runSingleEval(job.eval)
+				results[job.index] = result
 
-			result := r.runSingleEval(eval)
-			results[idx] = result
-
-			mu.Lock()
-			r.printResultParallel(result)
-			mu.Unlock()
-		}(i, e)
+				mu.Lock()
+				r.printResultParallel(result)
+				mu.Unlock()
+			}
+		}()
 	}
+
+	// Send jobs
+	for i, e := range evals {
+		jobs <- evalJob{index: i, eval: e}
+	}
+	close(jobs)
 
 	wg.Wait()
 	return results
@@ -219,9 +231,9 @@ func (r *Runner) printResult(result Result) {
 // printResultParallel prints a result in parallel mode (with category prefix).
 func (r *Runner) printResultParallel(result Result) {
 	if result.Passed {
-		fmt.Printf("[%s] ✓ %s (%dms)\n", result.Category, result.Name, result.Duration.Milliseconds())
+		fmt.Printf("✓ %s (%dms) [%s]\n", result.Name, result.Duration.Milliseconds(), result.Category)
 	} else {
-		fmt.Printf("[%s] ✗ %s - %s\n", result.Category, result.Name, result.Message)
+		fmt.Printf("✗ %s - %s [%s]\n", result.Name, result.Message, result.Category)
 		if r.config.Verbose && r.config.Logger != nil {
 			fmt.Printf("    See log: %s/%s.log\n", r.config.Logger.Dir(), result.Name)
 		}
