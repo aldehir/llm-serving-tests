@@ -15,11 +15,12 @@ import (
 
 // Config configures the client.
 type Config struct {
-	BaseURL string
-	APIKey  string
-	Model   string
-	Timeout time.Duration
-	Logger  *evallog.Logger
+	BaseURL               string
+	APIKey                string
+	Model                 string
+	Timeout               time.Duration
+	ResponseHeaderTimeout time.Duration
+	Logger                *evallog.Logger
 	// Extra contains additional fields to include in all request payloads.
 	Extra map[string]any
 }
@@ -44,7 +45,7 @@ func New(cfg Config) *Client {
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 			Transport: &http.Transport{
-				ResponseHeaderTimeout: 30 * time.Second,
+				ResponseHeaderTimeout: cfg.ResponseHeaderTimeout,
 			},
 		},
 		logger: cfg.Logger,

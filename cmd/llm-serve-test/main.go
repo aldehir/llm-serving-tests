@@ -19,15 +19,16 @@ import (
 )
 
 var (
-	baseURL string
-	apiKey  string
-	model   string
-	timeout time.Duration
-	verbose bool
-	filter  string
-	class   string
-	all     bool
-	extra   []string
+	baseURL               string
+	apiKey                string
+	model                 string
+	timeout               time.Duration
+	responseHeaderTimeout time.Duration
+	verbose               bool
+	filter                string
+	class                 string
+	all                   bool
+	extra                 []string
 
 	replayDelay time.Duration
 )
@@ -73,6 +74,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&apiKey, "api-key", "", "API key (optional)")
 	rootCmd.PersistentFlags().StringVar(&model, "model", "", "Model to test (required for run)")
 	rootCmd.PersistentFlags().DurationVar(&timeout, "timeout", 30*time.Second, "Request timeout")
+	rootCmd.PersistentFlags().DurationVar(&responseHeaderTimeout, "response-header-timeout", 5*time.Minute, "Time to wait for response headers (prompt processing time)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show full request/response for all tests")
 	rootCmd.PersistentFlags().StringVar(&filter, "filter", "", "Run only tests matching pattern")
 	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only tests of specified class (standard, reasoning, interleaved)")
@@ -126,12 +128,13 @@ func runEvals(cmd *cobra.Command, args []string) error {
 
 	// Initialize client
 	c := client.New(client.Config{
-		BaseURL: baseURL,
-		APIKey:  apiKey,
-		Model:   model,
-		Timeout: timeout,
-		Logger:  logger,
-		Extra:   extraFields,
+		BaseURL:               baseURL,
+		APIKey:                apiKey,
+		Model:                 model,
+		Timeout:               timeout,
+		ResponseHeaderTimeout: responseHeaderTimeout,
+		Logger:                logger,
+		Extra:                 extraFields,
 	})
 
 	// Run evals

@@ -29,6 +29,7 @@ Required flags:
 Optional flags:
 - `--api-key` - API key if your server requires auth
 - `--timeout` - Request timeout (default: 30s)
+- `--response-header-timeout` - Time to wait for response headers, useful for slow prompt processing (default: 5m)
 - `--verbose` / `-v` - Show full request/response for all tests
 - `--filter` - Run only tests matching a pattern (e.g. `--filter streaming`)
 - `--class` - Run only tests of a specific class: `standard`, `reasoning`, or `interleaved`
