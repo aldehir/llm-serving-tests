@@ -14,6 +14,9 @@ go vet ./...
 # Run tests (requires a running LLM server)
 ./llm-serve-test --base-url http://localhost:8080/v1 --model <model-name>
 
+# Run tests in parallel
+./llm-serve-test --base-url http://localhost:8080/v1 --model <model-name> -j 4
+
 # List available tests
 ./llm-serve-test list
 ```

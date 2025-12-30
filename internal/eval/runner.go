@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aldehir/llm-serving-tests/internal/client"
@@ -93,6 +94,7 @@ type RunnerConfig struct {
 	Class   string
 	All     bool // Include evals that are disabled by default
 	Logger  *evallog.Logger
+	Jobs    int // Number of parallel test executions (1 = sequential)
 }
 
 // Runner executes evals.
@@ -113,49 +115,40 @@ func NewRunner(c *client.Client, cfg RunnerConfig) *Runner {
 
 // Run executes all evals and returns results.
 func (r *Runner) Run() []Result {
-	var results []Result
-	currentCategory := ""
-
+	// Filter evals first
+	var evals []Eval
 	for _, e := range r.evals {
-		// Apply name filter
 		if r.config.Filter != "" && !strings.Contains(e.Name(), r.config.Filter) {
 			continue
 		}
-
-		// Apply class filter
 		if !ClassMatches(e.Class(), r.config.Class) {
 			continue
 		}
-
-		// Skip disabled-by-default evals unless --all is set
 		if !r.config.All && IsDefaultDisabled(e) {
 			continue
 		}
+		evals = append(evals, e)
+	}
 
+	if r.config.Jobs <= 1 {
+		return r.runSequential(evals)
+	}
+	return r.runParallel(evals)
+}
+
+// runSequential executes evals one at a time (original behavior).
+func (r *Runner) runSequential(evals []Eval) []Result {
+	var results []Result
+	currentCategory := ""
+
+	for _, e := range evals {
 		// Print category header
 		if e.Category() != currentCategory {
 			currentCategory = e.Category()
 			fmt.Println(currentCategory)
 		}
 
-		// Start logging
-		if r.config.Logger != nil {
-			r.config.Logger.StartEval(e.Name())
-		}
-
-		// Run eval
-		start := time.Now()
-		ctx := context.Background()
-		result := e.Run(ctx, r.client)
-		result.Duration = time.Since(start)
-
-		// Log result
-		if r.config.Logger != nil {
-			r.config.Logger.LogResult(result.Passed, result.Message)
-			r.config.Logger.EndEval()
-		}
-
-		// Print result
+		result := r.runSingleEval(e)
 		r.printResult(result)
 		results = append(results, result)
 	}
@@ -163,11 +156,72 @@ func (r *Runner) Run() []Result {
 	return results
 }
 
+// runParallel executes evals concurrently with limited parallelism.
+func (r *Runner) runParallel(evals []Eval) []Result {
+	results := make([]Result, len(evals))
+	sem := make(chan struct{}, r.config.Jobs)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for i, e := range evals {
+		wg.Add(1)
+		go func(idx int, eval Eval) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			result := r.runSingleEval(eval)
+			results[idx] = result
+
+			mu.Lock()
+			r.printResultParallel(result)
+			mu.Unlock()
+		}(i, e)
+	}
+
+	wg.Wait()
+	return results
+}
+
+// runSingleEval executes a single eval with logging.
+func (r *Runner) runSingleEval(e Eval) Result {
+	if r.config.Logger != nil {
+		r.config.Logger.StartEval(e.Name())
+	}
+
+	start := time.Now()
+	ctx := context.Background()
+	result := e.Run(ctx, r.client)
+	result.Duration = time.Since(start)
+	result.Name = e.Name()
+	result.Category = e.Category()
+
+	if r.config.Logger != nil {
+		r.config.Logger.LogResult(result.Passed, result.Message)
+		r.config.Logger.EndEval()
+	}
+
+	return result
+}
+
+// printResult prints a result in sequential mode (indented under category).
 func (r *Runner) printResult(result Result) {
 	if result.Passed {
 		fmt.Printf("  ✓ %s (%dms)\n", result.Name, result.Duration.Milliseconds())
 	} else {
 		fmt.Printf("  ✗ %s - %s\n", result.Name, result.Message)
+		if r.config.Verbose && r.config.Logger != nil {
+			fmt.Printf("    See log: %s/%s.log\n", r.config.Logger.Dir(), result.Name)
+		}
+	}
+}
+
+// printResultParallel prints a result in parallel mode (with category prefix).
+func (r *Runner) printResultParallel(result Result) {
+	if result.Passed {
+		fmt.Printf("[%s] ✓ %s (%dms)\n", result.Category, result.Name, result.Duration.Milliseconds())
+	} else {
+		fmt.Printf("[%s] ✗ %s - %s\n", result.Category, result.Name, result.Message)
 		if r.config.Verbose && r.config.Logger != nil {
 			fmt.Printf("    See log: %s/%s.log\n", r.config.Logger.Dir(), result.Name)
 		}

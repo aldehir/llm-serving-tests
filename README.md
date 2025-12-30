@@ -35,6 +35,7 @@ Optional flags:
 - `--class` - Run only tests of a specific class: `standard`, `reasoning`, or `interleaved`
 - `--all` / `-a` - Include tests that are disabled by default
 - `--extra` / `-e` - Add custom fields to request payloads (repeatable)
+- `--jobs` / `-j` - Number of parallel test executions (default: 1)
 
 ## Test Classes
 
@@ -50,6 +51,9 @@ llm-serve-test --base-url http://localhost:8080/v1 --model llama-3 --class stand
 
 # Test a reasoning model
 llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 --class reasoning
+
+# Run 4 tests in parallel
+llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 -j 4
 ```
 
 ## List Available Tests

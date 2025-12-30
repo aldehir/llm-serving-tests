@@ -29,6 +29,7 @@ var (
 	class                 string
 	all                   bool
 	extra                 []string
+	jobs                  int
 
 	replayDelay time.Duration
 )
@@ -80,6 +81,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only tests of specified class (standard, reasoning, interleaved)")
 	rootCmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "Include tests that are disabled by default")
 	rootCmd.PersistentFlags().StringArrayVarP(&extra, "extra", "e", nil, "Extra request field (key=value or key:=json), can be repeated")
+	rootCmd.PersistentFlags().IntVarP(&jobs, "jobs", "j", 1, "Number of parallel test executions")
 
 	replayCmd.Flags().DurationVar(&replayDelay, "delay", 10*time.Millisecond, "Delay between chunks")
 	replayAllCmd.Flags().DurationVar(&replayDelay, "delay", 10*time.Millisecond, "Delay between chunks")
@@ -144,6 +146,7 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		Class:   class,
 		All:     all,
 		Logger:  logger,
+		Jobs:    jobs,
 	})
 
 	fmt.Println("LLM Serving Tests")
