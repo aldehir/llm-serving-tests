@@ -13,18 +13,12 @@ const toolCategory = "Tool Calling"
 // toolEvals returns all tool-calling-related evals.
 func toolEvals() []Eval {
 	return []Eval{
-		&singleToolCallEval{streaming: false},
-		&singleToolCallEval{streaming: true},
-		&parallelToolCallEval{streaming: false},
-		&parallelToolCallEval{streaming: true},
-		&requiredToolCallEval{streaming: false},
-		&requiredToolCallEval{streaming: true},
-		&requiredToolCallWithReasoningEval{streaming: false},
-		&requiredToolCallWithReasoningEval{streaming: true},
-		&complexSchemaToolCallEval{streaming: false},
-		&complexSchemaToolCallEval{streaming: true},
-		&codeGenerationToolCallEval{streaming: false},
-		&codeGenerationToolCallEval{streaming: true},
+		&singleToolCallEval{},
+		&parallelToolCallEval{},
+		&requiredToolCallEval{},
+		&requiredToolCallWithReasoningEval{},
+		&complexSchemaToolCallEval{},
+		&codeGenerationToolCallEval{},
 	}
 }
 
@@ -34,11 +28,11 @@ type singleToolCallEval struct {
 }
 
 func (e *singleToolCallEval) Name() string {
-	if e.streaming {
-		return "single_tool_call_streaming"
-	}
 	return "single_tool_call"
 }
+
+func (e *singleToolCallEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *singleToolCallEval) Streaming() bool             { return e.streaming }
 
 func (e *singleToolCallEval) Category() string {
 	return toolCategory
@@ -174,11 +168,11 @@ type parallelToolCallEval struct {
 }
 
 func (e *parallelToolCallEval) Name() string {
-	if e.streaming {
-		return "parallel_tool_calls_streaming"
-	}
 	return "parallel_tool_calls"
 }
+
+func (e *parallelToolCallEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *parallelToolCallEval) Streaming() bool             { return e.streaming }
 
 func (e *parallelToolCallEval) Category() string {
 	return toolCategory
@@ -304,11 +298,11 @@ type requiredToolCallEval struct {
 }
 
 func (e *requiredToolCallEval) Name() string {
-	if e.streaming {
-		return "required_tool_call_streaming"
-	}
 	return "required_tool_call"
 }
+
+func (e *requiredToolCallEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *requiredToolCallEval) Streaming() bool             { return e.streaming }
 
 func (e *requiredToolCallEval) Category() string {
 	return toolCategory
@@ -426,11 +420,11 @@ type requiredToolCallWithReasoningEval struct {
 }
 
 func (e *requiredToolCallWithReasoningEval) Name() string {
-	if e.streaming {
-		return "required_tool_call_with_reasoning_streaming"
-	}
 	return "required_tool_call_with_reasoning"
 }
+
+func (e *requiredToolCallWithReasoningEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *requiredToolCallWithReasoningEval) Streaming() bool             { return e.streaming }
 
 func (e *requiredToolCallWithReasoningEval) Category() string {
 	return toolCategory
@@ -562,11 +556,11 @@ type complexSchemaToolCallEval struct {
 }
 
 func (e *complexSchemaToolCallEval) Name() string {
-	if e.streaming {
-		return "complex_schema_tool_call_streaming"
-	}
 	return "complex_schema_tool_call"
 }
+
+func (e *complexSchemaToolCallEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *complexSchemaToolCallEval) Streaming() bool             { return e.streaming }
 
 func (e *complexSchemaToolCallEval) Category() string {
 	return toolCategory
@@ -965,11 +959,11 @@ type codeGenerationToolCallEval struct {
 }
 
 func (e *codeGenerationToolCallEval) Name() string {
-	if e.streaming {
-		return "code_generation_tool_call_streaming"
-	}
 	return "code_generation_tool_call"
 }
+
+func (e *codeGenerationToolCallEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *codeGenerationToolCallEval) Streaming() bool             { return e.streaming }
 
 func (e *codeGenerationToolCallEval) Category() string {
 	return toolCategory

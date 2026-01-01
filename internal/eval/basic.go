@@ -12,8 +12,7 @@ const basicCategory = "Basic"
 // basicEvals returns all basic sanity-check evals.
 func basicEvals() []Eval {
 	return []Eval{
-		&chatCompletionEval{streaming: false},
-		&chatCompletionEval{streaming: true},
+		&chatCompletionEval{},
 	}
 }
 
@@ -23,11 +22,11 @@ type chatCompletionEval struct {
 }
 
 func (e *chatCompletionEval) Name() string {
-	if e.streaming {
-		return "chat_completion_streaming"
-	}
 	return "chat_completion"
 }
+
+func (e *chatCompletionEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *chatCompletionEval) Streaming() bool             { return e.streaming }
 
 func (e *chatCompletionEval) Category() string {
 	return basicCategory

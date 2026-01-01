@@ -27,6 +27,7 @@ var (
 	verbose               bool
 	filter                string
 	class                 string
+	mode                  string
 	all                   bool
 	extra                 []string
 	jobs                  int
@@ -79,6 +80,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Show full request/response for all tests")
 	rootCmd.PersistentFlags().StringVar(&filter, "filter", "", "Run only tests matching pattern")
 	rootCmd.PersistentFlags().StringVar(&class, "class", "", "Run only tests of specified class (standard, reasoning, interleaved)")
+	rootCmd.PersistentFlags().StringVar(&mode, "mode", "both", "Request mode: blocking, streaming, or both")
 	rootCmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "Include tests that are disabled by default")
 	rootCmd.PersistentFlags().StringArrayVarP(&extra, "extra", "e", nil, "Extra request field (key=value or key:=json), can be repeated")
 	rootCmd.PersistentFlags().IntVarP(&jobs, "jobs", "j", 1, "Number of parallel test executions")
@@ -115,6 +117,19 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate mode
+	validModes := eval.AllModes()
+	validMode := false
+	for _, m := range validModes {
+		if mode == m {
+			validMode = true
+			break
+		}
+	}
+	if !validMode {
+		return fmt.Errorf("invalid --mode %q (valid: %s)", mode, strings.Join(validModes, ", "))
+	}
+
 	// Parse extra fields
 	extraFields, err := parseExtraFields(extra)
 	if err != nil {
@@ -144,6 +159,7 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		Verbose: verbose,
 		Filter:  filter,
 		Class:   class,
+		Mode:    eval.StreamMode(mode),
 		All:     all,
 		Logger:  logger,
 		Jobs:    jobs,

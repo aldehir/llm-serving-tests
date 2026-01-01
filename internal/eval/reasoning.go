@@ -12,10 +12,8 @@ const reasoningCategory = "Reasoning"
 // reasoningEvals returns all reasoning-related evals.
 func reasoningEvals() []Eval {
 	return []Eval{
-		&reasoningPresentEval{streaming: false},
-		&reasoningPresentEval{streaming: true},
-		&reasoningNotLeakedEval{streaming: false},
-		&reasoningNotLeakedEval{streaming: true},
+		&reasoningPresentEval{},
+		&reasoningNotLeakedEval{},
 	}
 }
 
@@ -25,11 +23,11 @@ type reasoningPresentEval struct {
 }
 
 func (e *reasoningPresentEval) Name() string {
-	if e.streaming {
-		return "reasoning_present_streaming"
-	}
 	return "reasoning_present"
 }
+
+func (e *reasoningPresentEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *reasoningPresentEval) Streaming() bool             { return e.streaming }
 
 func (e *reasoningPresentEval) Category() string {
 	return reasoningCategory
@@ -117,11 +115,11 @@ type reasoningNotLeakedEval struct {
 }
 
 func (e *reasoningNotLeakedEval) Name() string {
-	if e.streaming {
-		return "reasoning_not_leaked_streaming"
-	}
 	return "reasoning_not_leaked"
 }
+
+func (e *reasoningNotLeakedEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *reasoningNotLeakedEval) Streaming() bool             { return e.streaming }
 
 func (e *reasoningNotLeakedEval) Category() string {
 	return reasoningCategory

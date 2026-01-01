@@ -14,8 +14,7 @@ const schemaCategory = "Structured Output"
 // schemaEvals returns all JSON schema-related evals.
 func schemaEvals() []Eval {
 	return []Eval{
-		&jsonSchemaEval{streaming: false},
-		&jsonSchemaEval{streaming: true},
+		&jsonSchemaEval{},
 	}
 }
 
@@ -25,11 +24,11 @@ type jsonSchemaEval struct {
 }
 
 func (e *jsonSchemaEval) Name() string {
-	if e.streaming {
-		return "json_schema_streaming"
-	}
 	return "json_schema"
 }
+
+func (e *jsonSchemaEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *jsonSchemaEval) Streaming() bool             { return e.streaming }
 
 func (e *jsonSchemaEval) Category() string {
 	return schemaCategory

@@ -31,8 +31,9 @@ Optional flags:
 - `--timeout` - Request timeout (default: 30s)
 - `--response-header-timeout` - Time to wait for response headers, useful for slow prompt processing (default: 5m)
 - `--verbose` / `-v` - Show full request/response for all tests
-- `--filter` - Run only tests matching a pattern (e.g. `--filter streaming`)
+- `--filter` - Run only tests matching a pattern (e.g. `--filter tool`)
 - `--class` - Run only tests of a specific class: `standard`, `reasoning`, or `interleaved`
+- `--mode` - Request mode: `blocking`, `streaming`, or `both` (default: `both`)
 - `--all` / `-a` - Include tests that are disabled by default
 - `--extra` / `-e` - Add custom fields to request payloads (repeatable)
 - `--jobs` / `-j` - Number of parallel test executions (default: 1)
@@ -51,6 +52,12 @@ llm-serve-test --base-url http://localhost:8080/v1 --model llama-3 --class stand
 
 # Test a reasoning model
 llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 --class reasoning
+
+# Run only streaming tests
+llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 --mode streaming
+
+# Run only blocking (non-streaming) tests
+llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 --mode blocking
 
 # Run 4 tests in parallel
 llm-serve-test --base-url http://localhost:8080/v1 --model deepseek-r1 -j 4
@@ -96,17 +103,19 @@ llm-serve-test --base-url ... --model ... --extra 'stop:=["\n"]'
 - `parallel_tool_calls` - Multiple concurrent tool calls
 - `required_tool_call` - `tool_choice: "required"` behavior
 - `required_tool_call_with_reasoning` - Tool calls don't suppress reasoning output
+- `complex_schema_tool_call` - Deeply nested schema with objects, arrays, enums
+- `code_generation_tool_call` - Long-form text output in tool arguments
 
 **Structured Output**
 - `json_schema` - Response conforms to requested JSON schema
 
-**Agentic (Multi-Turn)** - all agentic tests use streaming
+**Agentic (Multi-Turn)**
 - `agentic_tool_call` - Full tool use loop with reasoning
 - `agentic_reasoning_in_template` - Reasoning included when continuing from tool result
 - `agentic_reasoning_not_in_user_template` - Reasoning excluded when last message is from user
 - `agentic_long_response` - Long text generation after tool call (disabled by default, use `--all` to include)
 
-Most tests have streaming variants (e.g. `single_tool_call_streaming`).
+All tests support both blocking and streaming modes via `--mode`.
 
 ## Logs
 
@@ -140,7 +149,7 @@ Streaming tests capture chunks to JSONL files for later visualization. This help
 Replay a single file:
 
 ```bash
-llm-serve-test replay logs/deepseek-r1/2025-01-15_143022/reasoning_present_streaming.stream.jsonl
+llm-serve-test replay "logs/deepseek-r1/2025-01-15_143022/reasoning_present (streaming).stream.jsonl"
 ```
 
 Replay all streaming captures from a log directory:
@@ -166,16 +175,16 @@ Server: http://localhost:8080/v1
 Model: deepseek-r1
 
 Reasoning
-  ✓ reasoning_present (512ms)
-  ✓ reasoning_not_leaked (487ms)
-  ✓ reasoning_present_streaming (534ms)
-  ✓ reasoning_not_leaked_streaming (501ms)
+  ✓ reasoning_present (blocking) (512ms)
+  ✓ reasoning_present (streaming) (534ms)
+  ✓ reasoning_not_leaked (blocking) (487ms)
+  ✓ reasoning_not_leaked (streaming) (501ms)
 
 Tool Calling
-  ✓ single_tool_call (623ms)
-  ✓ single_tool_call_streaming (645ms)
-  ✓ parallel_tool_calls (701ms)
-  ✗ parallel_tool_calls_streaming - expected at least 2 tool calls, got 1
+  ✓ single_tool_call (blocking) (623ms)
+  ✓ single_tool_call (streaming) (645ms)
+  ✓ parallel_tool_calls (blocking) (701ms)
+  ✗ parallel_tool_calls (streaming) - expected at least 2 tool calls, got 1
 
 Results: 7/8 passed
 

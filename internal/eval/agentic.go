@@ -13,10 +13,10 @@ const agenticCategory = "Agentic"
 // agenticEvals returns all agentic (multi-turn) evals.
 func agenticEvals() []Eval {
 	return []Eval{
-		&agenticToolCallEval{},
-		&agenticReasoningInTemplateEval{},
-		&agenticReasoningNotInUserTemplateEval{},
-		&agenticLongResponseEval{},
+		&agenticToolCallEval{streaming: true},
+		&agenticReasoningInTemplateEval{streaming: true},
+		&agenticReasoningNotInUserTemplateEval{streaming: true},
+		&agenticLongResponseEval{streaming: true},
 	}
 }
 
@@ -40,11 +40,16 @@ var weatherTool = client.Tool{
 }
 
 // agenticToolCallEval tests a multi-turn tool call flow with interleaved reasoning.
-type agenticToolCallEval struct{}
+type agenticToolCallEval struct {
+	streaming bool
+}
 
 func (e *agenticToolCallEval) Name() string {
 	return "agentic_tool_call"
 }
+
+func (e *agenticToolCallEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *agenticToolCallEval) Streaming() bool             { return e.streaming }
 
 func (e *agenticToolCallEval) Category() string {
 	return agenticCategory
@@ -64,18 +69,45 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		ToolChoice: "auto",
 	}
 
-	result1, err := c.ChatCompletionStream(ctx, req1)
-	if err != nil {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 1 request failed: " + err.Error(),
+	var toolCalls1 []client.ToolCall
+	var reasoningContent1 string
+
+	if e.streaming {
+		result1, err := c.ChatCompletionStream(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 1 request failed: " + err.Error(),
+			}
 		}
+		toolCalls1 = result1.ToolCalls
+		reasoningContent1 = result1.ReasoningContent
+	} else {
+		resp, err := c.ChatCompletion(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 1 request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 1: no choices in response",
+			}
+		}
+		toolCalls1 = resp.Choices[0].Message.ToolCalls
+		reasoningContent1 = resp.Choices[0].Message.ReasoningContent
 	}
 
 	// Verify we got a tool call
-	if len(result1.ToolCalls) == 0 {
+	if len(toolCalls1) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -84,7 +116,7 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		}
 	}
 
-	tc := result1.ToolCalls[0]
+	tc := toolCalls1[0]
 	if tc.Function.Name != "get_weather" {
 		return Result{
 			Name:     e.Name(),
@@ -100,8 +132,8 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 			{Role: "user", Content: "What's the weather in San Francisco?"},
 			{
 				Role:             "assistant",
-				ReasoningContent: result1.ReasoningContent,
-				ToolCalls:        result1.ToolCalls,
+				ReasoningContent: reasoningContent1,
+				ToolCalls:        toolCalls1,
 			},
 			{
 				Role:       "tool",
@@ -113,18 +145,42 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 		ToolChoice: "auto",
 	}
 
-	result2, err := c.ChatCompletionStream(ctx, req2)
-	if err != nil {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 2 request failed: " + err.Error(),
+	var content2 string
+
+	if e.streaming {
+		result2, err := c.ChatCompletionStream(ctx, req2)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 2 request failed: " + err.Error(),
+			}
 		}
+		content2 = result2.Content
+	} else {
+		resp, err := c.ChatCompletion(ctx, req2)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 2 request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 2: no choices in response",
+			}
+		}
+		content2 = resp.Choices[0].Message.Content
 	}
 
 	// Verify we got a final response with content
-	if strings.TrimSpace(result2.Content) == "" {
+	if strings.TrimSpace(content2) == "" {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -142,11 +198,16 @@ func (e *agenticToolCallEval) Run(ctx context.Context, c *client.Client) Result 
 
 // agenticReasoningInTemplateEval verifies reasoning appears in the template
 // when messages end with a tool result after an assistant message.
-type agenticReasoningInTemplateEval struct{}
+type agenticReasoningInTemplateEval struct {
+	streaming bool
+}
 
 func (e *agenticReasoningInTemplateEval) Name() string {
 	return "agentic_reasoning_in_template"
 }
+
+func (e *agenticReasoningInTemplateEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *agenticReasoningInTemplateEval) Streaming() bool             { return e.streaming }
 
 func (e *agenticReasoningInTemplateEval) Category() string {
 	return agenticCategory
@@ -166,18 +227,45 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		ToolChoice: "auto",
 	}
 
-	result1, err := c.ChatCompletionStream(ctx, req1)
-	if err != nil {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "initial request failed: " + err.Error(),
+	var toolCalls []client.ToolCall
+	var reasoningContent string
+
+	if e.streaming {
+		result1, err := c.ChatCompletionStream(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "initial request failed: " + err.Error(),
+			}
 		}
+		toolCalls = result1.ToolCalls
+		reasoningContent = result1.ReasoningContent
+	} else {
+		resp, err := c.ChatCompletion(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "initial request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "no choices in response",
+			}
+		}
+		toolCalls = resp.Choices[0].Message.ToolCalls
+		reasoningContent = resp.Choices[0].Message.ReasoningContent
 	}
 
 	// Need reasoning content for this test
-	if strings.TrimSpace(result1.ReasoningContent) == "" {
+	if strings.TrimSpace(reasoningContent) == "" {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -186,7 +274,7 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		}
 	}
 
-	if len(result1.ToolCalls) == 0 {
+	if len(toolCalls) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -195,15 +283,15 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 		}
 	}
 
-	tc := result1.ToolCalls[0]
+	tc := toolCalls[0]
 
 	// Build messages ending with tool result (should include reasoning in template)
 	messages := []client.Message{
 		{Role: "user", Content: "What's the weather in San Francisco?"},
 		{
 			Role:             "assistant",
-			ReasoningContent: result1.ReasoningContent,
-			ToolCalls:        result1.ToolCalls,
+			ReasoningContent: reasoningContent,
+			ToolCalls:        toolCalls,
 		},
 		{
 			Role:       "tool",
@@ -224,7 +312,7 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 	}
 
 	// Verify reasoning content appears in the prompt
-	if !strings.Contains(prompt, result1.ReasoningContent) {
+	if !strings.Contains(prompt, reasoningContent) {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -242,11 +330,16 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 
 // agenticReasoningNotInUserTemplateEval verifies reasoning does NOT appear
 // when messages end with a user message.
-type agenticReasoningNotInUserTemplateEval struct{}
+type agenticReasoningNotInUserTemplateEval struct {
+	streaming bool
+}
 
 func (e *agenticReasoningNotInUserTemplateEval) Name() string {
 	return "agentic_reasoning_not_in_user_template"
 }
+
+func (e *agenticReasoningNotInUserTemplateEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *agenticReasoningNotInUserTemplateEval) Streaming() bool             { return e.streaming }
 
 func (e *agenticReasoningNotInUserTemplateEval) Category() string {
 	return agenticCategory
@@ -266,18 +359,45 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		ToolChoice: "auto",
 	}
 
-	result1, err := c.ChatCompletionStream(ctx, req1)
-	if err != nil {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "initial request failed: " + err.Error(),
+	var toolCalls []client.ToolCall
+	var reasoningContent string
+
+	if e.streaming {
+		result1, err := c.ChatCompletionStream(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "initial request failed: " + err.Error(),
+			}
 		}
+		toolCalls = result1.ToolCalls
+		reasoningContent = result1.ReasoningContent
+	} else {
+		resp, err := c.ChatCompletion(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "initial request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "no choices in response",
+			}
+		}
+		toolCalls = resp.Choices[0].Message.ToolCalls
+		reasoningContent = resp.Choices[0].Message.ReasoningContent
 	}
 
 	// Need reasoning content for this test
-	if strings.TrimSpace(result1.ReasoningContent) == "" {
+	if strings.TrimSpace(reasoningContent) == "" {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -286,7 +406,7 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		}
 	}
 
-	if len(result1.ToolCalls) == 0 {
+	if len(toolCalls) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -295,15 +415,15 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 		}
 	}
 
-	tc := result1.ToolCalls[0]
+	tc := toolCalls[0]
 
 	// Build messages ending with USER message (reasoning should NOT appear)
 	messages := []client.Message{
 		{Role: "user", Content: "What's the weather in San Francisco?"},
 		{
 			Role:             "assistant",
-			ReasoningContent: result1.ReasoningContent,
-			ToolCalls:        result1.ToolCalls,
+			ReasoningContent: reasoningContent,
+			ToolCalls:        toolCalls,
 		},
 		{
 			Role:       "tool",
@@ -325,7 +445,7 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 	}
 
 	// Verify reasoning content does NOT appear in the prompt
-	if strings.Contains(prompt, result1.ReasoningContent) {
+	if strings.Contains(prompt, reasoningContent) {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -411,11 +531,16 @@ const detailedDocsResponse = `{
 // agenticLongResponseEval tests a multi-turn flow where the model must generate
 // a long text response after receiving tool results. This tests the server's
 // grammar trigger for <tool_call> token that never comes during long generation.
-type agenticLongResponseEval struct{}
+type agenticLongResponseEval struct {
+	streaming bool
+}
 
 func (e *agenticLongResponseEval) Name() string {
 	return "agentic_long_response"
 }
+
+func (e *agenticLongResponseEval) SetStreaming(streaming bool) { e.streaming = streaming }
+func (e *agenticLongResponseEval) Streaming() bool             { return e.streaming }
 
 func (e *agenticLongResponseEval) Category() string {
 	return agenticCategory
@@ -430,12 +555,7 @@ func (e *agenticLongResponseEval) IsDefaultDisabled() bool {
 }
 
 func (e *agenticLongResponseEval) Run(ctx context.Context, c *client.Client) Result {
-	// Turn 1: User asks to fetch and explain documentation
-	req1 := client.ChatCompletionRequest{
-		Messages: []client.Message{
-			{
-				Role: "user",
-				Content: `Fetch the documentation about garbage collection and then write a comprehensive
+	userPrompt := `Fetch the documentation about garbage collection and then write a comprehensive
 tutorial explaining how garbage collection works. Your explanation must cover ALL of the
 following topics in detail:
 
@@ -449,25 +569,56 @@ following topics in detail:
 8. Tuning and troubleshooting guidance
 
 For each topic, explain the concepts thoroughly with specific technical details.
-Do not just summarize - provide a complete educational explanation.`,
-			},
+Do not just summarize - provide a complete educational explanation.`
+
+	// Turn 1: User asks to fetch and explain documentation
+	req1 := client.ChatCompletionRequest{
+		Messages: []client.Message{
+			{Role: "user", Content: userPrompt},
 		},
 		Tools:      []client.Tool{fetchDocsTool},
 		ToolChoice: "auto",
 	}
 
-	result1, err := c.ChatCompletionStream(ctx, req1)
-	if err != nil {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 1 request failed: " + err.Error(),
+	var toolCalls1 []client.ToolCall
+	var reasoningContent1 string
+
+	if e.streaming {
+		result1, err := c.ChatCompletionStream(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 1 request failed: " + err.Error(),
+			}
 		}
+		toolCalls1 = result1.ToolCalls
+		reasoningContent1 = result1.ReasoningContent
+	} else {
+		resp, err := c.ChatCompletion(ctx, req1)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 1 request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 1: no choices in response",
+			}
+		}
+		toolCalls1 = resp.Choices[0].Message.ToolCalls
+		reasoningContent1 = resp.Choices[0].Message.ReasoningContent
 	}
 
 	// Verify we got a tool call
-	if len(result1.ToolCalls) == 0 {
+	if len(toolCalls1) == 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -476,7 +627,7 @@ Do not just summarize - provide a complete educational explanation.`,
 		}
 	}
 
-	tc := result1.ToolCalls[0]
+	tc := toolCalls1[0]
 	if tc.Function.Name != "fetch_documentation" {
 		return Result{
 			Name:     e.Name(),
@@ -489,28 +640,11 @@ Do not just summarize - provide a complete educational explanation.`,
 	// Turn 2: Send tool result with detailed documentation
 	req2 := client.ChatCompletionRequest{
 		Messages: []client.Message{
-			{
-				Role: "user",
-				Content: `Fetch the documentation about garbage collection and then write a comprehensive
-tutorial explaining how garbage collection works. Your explanation must cover ALL of the
-following topics in detail:
-
-1. The history and motivation for garbage collection
-2. Reference counting - how it works, advantages, disadvantages, and which languages use it
-3. Mark and sweep algorithm - the two phases, variations like mark-compact and mark-copy
-4. Generational garbage collection - the hypothesis, how generations work, promotion
-5. Concurrent and parallel collection - challenges, tri-color abstraction, write barriers
-6. Specific implementations in Java (G1, ZGC, Shenandoah), Go, and Python
-7. Memory allocation strategies that work with GC
-8. Tuning and troubleshooting guidance
-
-For each topic, explain the concepts thoroughly with specific technical details.
-Do not just summarize - provide a complete educational explanation.`,
-			},
+			{Role: "user", Content: userPrompt},
 			{
 				Role:             "assistant",
-				ReasoningContent: result1.ReasoningContent,
-				ToolCalls:        result1.ToolCalls,
+				ReasoningContent: reasoningContent1,
+				ToolCalls:        toolCalls1,
 			},
 			{
 				Role:       "tool",
@@ -522,28 +656,55 @@ Do not just summarize - provide a complete educational explanation.`,
 		ToolChoice: "auto",
 	}
 
-	result2, err := c.ChatCompletionStream(ctx, req2)
-	if err != nil {
-		return Result{
-			Name:     e.Name(),
-			Category: e.Category(),
-			Passed:   false,
-			Message:  "turn 2 request failed: " + err.Error(),
+	var content2 string
+	var toolCalls2 []client.ToolCall
+
+	if e.streaming {
+		result2, err := c.ChatCompletionStream(ctx, req2)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 2 request failed: " + err.Error(),
+			}
 		}
+		content2 = result2.Content
+		toolCalls2 = result2.ToolCalls
+	} else {
+		resp, err := c.ChatCompletion(ctx, req2)
+		if err != nil {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 2 request failed: " + err.Error(),
+			}
+		}
+		if len(resp.Choices) == 0 {
+			return Result{
+				Name:     e.Name(),
+				Category: e.Category(),
+				Passed:   false,
+				Message:  "turn 2: no choices in response",
+			}
+		}
+		content2 = resp.Choices[0].Message.Content
+		toolCalls2 = resp.Choices[0].Message.ToolCalls
 	}
 
 	// Verify no additional tool calls (model should just explain)
-	if len(result2.ToolCalls) > 0 {
+	if len(toolCalls2) > 0 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
 			Passed:   false,
-			Message:  "turn 2: expected no tool calls, got " + result2.ToolCalls[0].Function.Name,
+			Message:  "turn 2: expected no tool calls, got " + toolCalls2[0].Function.Name,
 		}
 	}
 
 	// Verify we got substantial content (at least 2500 chars for comprehensive tutorial)
-	if len(result2.Content) < 2500 {
+	if len(content2) < 2500 {
 		return Result{
 			Name:     e.Name(),
 			Category: e.Category(),
@@ -559,7 +720,7 @@ Do not just summarize - provide a complete educational explanation.`,
 		"generation",
 	}
 
-	contentLower := strings.ToLower(result2.Content)
+	contentLower := strings.ToLower(content2)
 	for _, topic := range requiredTopics {
 		if !strings.Contains(contentLower, topic) {
 			return Result{
