@@ -20,7 +20,6 @@ type Config struct {
 	Model                 string
 	Timeout               time.Duration
 	ResponseHeaderTimeout time.Duration
-	Logger                *evallog.Logger
 	// Extra contains additional fields to include in all request payloads.
 	Extra map[string]any
 }
@@ -32,7 +31,7 @@ type Client struct {
 	model      string
 	extra      map[string]any
 	httpClient *http.Client
-	logger     *evallog.Logger
+	logger     evallog.RequestLogger
 }
 
 // New creates a new Client.
@@ -48,7 +47,19 @@ func New(cfg Config) *Client {
 				ResponseHeaderTimeout: cfg.ResponseHeaderTimeout,
 			},
 		},
-		logger: cfg.Logger,
+	}
+}
+
+// WithLogger returns a new Client that uses the given logger.
+// This creates a shallow copy that shares the underlying http.Client.
+func (c *Client) WithLogger(logger evallog.RequestLogger) *Client {
+	return &Client{
+		baseURL:    c.baseURL,
+		apiKey:     c.apiKey,
+		model:      c.model,
+		extra:      c.extra,
+		httpClient: c.httpClient,
+		logger:     logger,
 	}
 }
 

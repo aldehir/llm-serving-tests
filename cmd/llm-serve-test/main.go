@@ -150,7 +150,6 @@ func runEvals(cmd *cobra.Command, args []string) error {
 		Model:                 model,
 		Timeout:               timeout,
 		ResponseHeaderTimeout: responseHeaderTimeout,
-		Logger:                logger,
 		Extra:                 extraFields,
 	})
 

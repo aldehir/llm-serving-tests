@@ -291,20 +291,24 @@ func (r *Runner) runSingleEval(e Eval, streaming bool) Result {
 		name += " (blocking)"
 	}
 
+	// Create per-eval logging context and client
+	var evalLog *evallog.EvalLog
+	evalClient := r.client
 	if r.config.Logger != nil {
-		r.config.Logger.StartEval(name)
+		evalLog = r.config.Logger.StartEval(name)
+		evalClient = r.client.WithLogger(evalLog)
 	}
 
 	start := time.Now()
 	ctx := context.Background()
-	result := e.Run(ctx, r.client)
+	result := e.Run(ctx, evalClient)
 	result.Duration = time.Since(start)
 	result.Name = name
 	result.Category = e.Category()
 
-	if r.config.Logger != nil {
-		r.config.Logger.LogResult(result.Passed, result.Message)
-		r.config.Logger.EndEval()
+	if evalLog != nil {
+		evalLog.LogResult(result.Passed, result.Message)
+		evalLog.End()
 	}
 
 	return result
