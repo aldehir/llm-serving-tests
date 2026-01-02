@@ -9,6 +9,7 @@ import (
 
 	"github.com/aldehir/llm-serving-tests/internal/client"
 	evallog "github.com/aldehir/llm-serving-tests/internal/log"
+	"github.com/fatih/color"
 )
 
 // Eval class constants.
@@ -317,9 +318,9 @@ func (r *Runner) runSingleEval(e Eval, streaming bool) Result {
 // printResult prints a result in sequential mode (indented under category).
 func (r *Runner) printResult(result Result) {
 	if result.Passed {
-		fmt.Printf("  ✓ %s (%dms)\n", result.Name, result.Duration.Milliseconds())
+		fmt.Printf("  %s %s (%dms)\n", color.GreenString("✓"), result.Name, result.Duration.Milliseconds())
 	} else {
-		fmt.Printf("  ✗ %s - %s\n", result.Name, result.Message)
+		fmt.Printf("  %s %s - %s\n", color.RedString("✗"), result.Name, result.Message)
 		if r.config.Verbose && r.config.Logger != nil {
 			fmt.Printf("    See log: %s/%s.log\n", r.config.Logger.Dir(), result.Name)
 		}
@@ -329,9 +330,9 @@ func (r *Runner) printResult(result Result) {
 // printResultParallel prints a result in parallel mode (with category prefix).
 func (r *Runner) printResultParallel(result Result) {
 	if result.Passed {
-		fmt.Printf("✓ %s (%dms) [%s]\n", result.Name, result.Duration.Milliseconds(), result.Category)
+		fmt.Printf("%s %s (%dms) [%s]\n", color.GreenString("✓"), result.Name, result.Duration.Milliseconds(), result.Category)
 	} else {
-		fmt.Printf("✗ %s - %s [%s]\n", result.Name, result.Message, result.Category)
+		fmt.Printf("%s %s - %s [%s]\n", color.RedString("✗"), result.Name, result.Message, result.Category)
 		if r.config.Verbose && r.config.Logger != nil {
 			fmt.Printf("    See log: %s/%s.log\n", r.config.Logger.Dir(), result.Name)
 		}
