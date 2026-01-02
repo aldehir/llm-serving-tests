@@ -17,6 +17,7 @@ func agenticEvals() []Eval {
 		&agenticReasoningInTemplateEval{streaming: true},
 		&agenticReasoningNotInUserTemplateEval{streaming: true},
 		&agenticLongResponseEval{streaming: true},
+		&agenticTemplateRenderingEval{},
 	}
 }
 
@@ -729,6 +730,135 @@ Do not just summarize - provide a complete educational explanation.`
 				Passed:   false,
 				Message:  "turn 2: response missing expected topic: " + topic,
 			}
+		}
+	}
+
+	return Result{
+		Name:     e.Name(),
+		Category: e.Category(),
+		Passed:   true,
+	}
+}
+
+// agenticTemplateRenderingEval tests that multi-turn tool call conversations
+// with reasoning content render correctly in the chat template without making
+// any LLM calls. This verifies the server's template handling of:
+// - Assistant messages with reasoning_content
+// - Assistant messages with tool_calls
+// - Tool response messages
+type agenticTemplateRenderingEval struct{}
+
+func (e *agenticTemplateRenderingEval) Name() string {
+	return "agentic_template_rendering"
+}
+
+func (e *agenticTemplateRenderingEval) SetStreaming(streaming bool) {}
+func (e *agenticTemplateRenderingEval) Streaming() bool             { return false }
+
+func (e *agenticTemplateRenderingEval) Category() string {
+	return agenticCategory
+}
+
+func (e *agenticTemplateRenderingEval) Class() string {
+	return ClassInterleaved
+}
+
+func (e *agenticTemplateRenderingEval) Run(ctx context.Context, c *client.Client) Result {
+	// Synthetic reasoning content that would come from a reasoning model
+	syntheticReasoning := "The user is asking about the weather in San Francisco. " +
+		"I should use the get_weather tool to fetch the current conditions. " +
+		"Let me call the tool with the location parameter set to San Francisco, CA."
+
+	// Synthetic tool call
+	syntheticToolCalls := []client.ToolCall{
+		{
+			ID:   "call_abc123",
+			Type: "function",
+			Function: client.ToolCallFunction{
+				Name:      "get_weather",
+				Arguments: `{"location": "San Francisco, CA"}`,
+			},
+		},
+	}
+
+	// Build multi-turn conversation:
+	// 1. User asks about weather
+	// 2. Assistant reasons and calls tool
+	// 3. Tool returns result
+	messages := []client.Message{
+		{Role: "user", Content: "What's the weather like in San Francisco?"},
+		{
+			Role:             "assistant",
+			ReasoningContent: syntheticReasoning,
+			ToolCalls:        syntheticToolCalls,
+		},
+		{
+			Role:       "tool",
+			ToolCallID: "call_abc123",
+			Content:    `{"temperature": 68, "conditions": "partly cloudy", "humidity": 72}`,
+		},
+	}
+
+	// Render the template
+	prompt, err := c.ApplyTemplate(ctx, messages)
+	if err != nil {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "/apply-template failed: " + err.Error(),
+		}
+	}
+
+	// Verify the rendered template contains key elements
+
+	// 1. Check that reasoning content appears in the template
+	if !strings.Contains(prompt, syntheticReasoning) {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "reasoning_content not found in rendered template",
+		}
+	}
+
+	// 2. Check that tool call information appears
+	if !strings.Contains(prompt, "get_weather") {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "tool call function name 'get_weather' not found in rendered template",
+		}
+	}
+
+	// 3. Check that tool call arguments appear
+	if !strings.Contains(prompt, "San Francisco") {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "tool call arguments not found in rendered template",
+		}
+	}
+
+	// 4. Check that tool response appears
+	if !strings.Contains(prompt, "partly cloudy") {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "tool response content not found in rendered template",
+		}
+	}
+
+	// 5. Check that tool call ID appears (links response to call)
+	if !strings.Contains(prompt, "call_abc123") {
+		return Result{
+			Name:     e.Name(),
+			Category: e.Category(),
+			Passed:   false,
+			Message:  "tool call ID not found in rendered template",
 		}
 	}
 
