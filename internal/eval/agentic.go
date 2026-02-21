@@ -18,6 +18,7 @@ func agenticEvals() []Eval {
 		&agenticReasoningNotInUserTemplateEval{streaming: true},
 		&agenticLongResponseEval{streaming: true},
 		&agenticTemplateRenderingEval{},
+		&agenticIncidentInvestigationEval{streaming: true},
 	}
 }
 
