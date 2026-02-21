@@ -1,11 +1,14 @@
 package log
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,9 +20,28 @@ type RequestLogger interface {
 	LogStreamChunks(jsonl []byte)
 }
 
+// TurnData captures a single request/response pair for report generation.
+type TurnData struct {
+	URL          string
+	RequestBody  json.RawMessage
+	ResponseBody json.RawMessage // synthesized from stream chunks for streaming
+}
+
+// EvalResult holds the structured result of an eval for report generation.
+type EvalResult struct {
+	Name    string
+	Passed  bool
+	Message string
+	Turns   []TurnData
+}
+
 // Logger handles request/response logging to files.
 type Logger struct {
-	dir string
+	dir   string
+	model string
+
+	mu    sync.Mutex
+	evals []EvalResult
 }
 
 // New creates a new Logger, creating the log directory.
@@ -32,12 +54,31 @@ func New(model string) (*Logger, error) {
 		return nil, fmt.Errorf("create log directory: %w", err)
 	}
 
-	return &Logger{dir: dir}, nil
+	return &Logger{dir: dir, model: model}, nil
 }
 
 // Dir returns the log directory path.
 func (l *Logger) Dir() string {
 	return l.dir
+}
+
+// Model returns the model name.
+func (l *Logger) Model() string {
+	return l.model
+}
+
+// Evals returns the collected eval results.
+func (l *Logger) Evals() []EvalResult {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]EvalResult(nil), l.evals...)
+}
+
+// registerEval adds a completed eval result.
+func (l *Logger) registerEval(result EvalResult) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.evals = append(l.evals, result)
 }
 
 // StartEval starts logging for a new eval and returns an EvalLog handle.
@@ -60,6 +101,13 @@ type EvalLog struct {
 	name         string
 	buf          bytes.Buffer
 	streamChunks []byte
+
+	// Structured data for report generation
+	pendingURL     string
+	pendingRequest json.RawMessage
+	turns          []TurnData
+	passed         bool
+	message        string
 }
 
 // LogRequest logs an HTTP request.
@@ -69,6 +117,10 @@ func (el *EvalLog) LogRequest(method, url string, body []byte) {
 	el.buf.WriteString("\n")
 	el.buf.Write(formatJSON(body))
 	el.buf.WriteString("\n\n")
+
+	// Capture for report
+	el.pendingURL = url
+	el.pendingRequest = append(json.RawMessage(nil), body...)
 }
 
 // LogResponse logs an HTTP response.
@@ -78,6 +130,15 @@ func (el *EvalLog) LogResponse(status int, body []byte) {
 	el.buf.WriteString("\n")
 	el.buf.Write(formatJSON(body))
 	el.buf.WriteString("\n\n")
+
+	// Capture turn for report
+	el.turns = append(el.turns, TurnData{
+		URL:          el.pendingURL,
+		RequestBody:  el.pendingRequest,
+		ResponseBody: append(json.RawMessage(nil), body...),
+	})
+	el.pendingRequest = nil
+	el.pendingURL = ""
 }
 
 // LogStreamResponse logs a streaming response.
@@ -89,9 +150,22 @@ func (el *EvalLog) LogStreamResponse(status int, rawChunks []byte) {
 	el.buf.WriteString("\n")
 }
 
-// LogStreamChunks stores JSONL-formatted stream chunks for replay.
+// LogStreamChunks stores JSONL-formatted stream chunks for replay,
+// and reconstructs a synthetic response for report generation.
 func (el *EvalLog) LogStreamChunks(jsonl []byte) {
 	el.streamChunks = jsonl
+
+	// Reconstruct a synthetic response from stream chunks for the report
+	synthetic := reconstructFromChunks(jsonl)
+	if synthetic != nil {
+		el.turns = append(el.turns, TurnData{
+			URL:          el.pendingURL,
+			RequestBody:  el.pendingRequest,
+			ResponseBody: synthetic,
+		})
+		el.pendingRequest = nil
+		el.pendingURL = ""
+	}
 }
 
 // LogError logs an error.
@@ -118,6 +192,9 @@ func (el *EvalLog) LogResult(passed bool, message string) {
 		el.buf.WriteString(message)
 		el.buf.WriteString("\n")
 	}
+
+	el.passed = passed
+	el.message = message
 }
 
 // End finishes logging for this eval and writes to file.
@@ -135,6 +212,14 @@ func (el *EvalLog) End() error {
 		}
 	}
 
+	// Register structured data with parent logger
+	el.logger.registerEval(EvalResult{
+		Name:    el.name,
+		Passed:  el.passed,
+		Message: el.message,
+		Turns:   el.turns,
+	})
+
 	return nil
 }
 
@@ -150,4 +235,125 @@ func formatJSON(data []byte) []byte {
 		return data // Return original if not valid JSON
 	}
 	return buf.Bytes()
+}
+
+// reconstructFromChunks builds a synthetic ChatCompletion-shaped response
+// from JSONL stream chunks. Uses generic maps to avoid importing client types.
+func reconstructFromChunks(jsonl []byte) json.RawMessage {
+	var content strings.Builder
+	var reasoningContent strings.Builder
+	toolCalls := make(map[int]map[string]any) // index -> tool call object
+
+	scanner := bufio.NewScanner(bytes.NewReader(jsonl))
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var chunk map[string]any
+		if err := json.Unmarshal(line, &chunk); err != nil {
+			continue
+		}
+
+		choices, ok := chunk["choices"].([]any)
+		if !ok || len(choices) == 0 {
+			continue
+		}
+
+		choice, ok := choices[0].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		delta, ok := choice["delta"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if c, ok := delta["content"].(string); ok {
+			content.WriteString(c)
+		}
+		if rc, ok := delta["reasoning_content"].(string); ok {
+			reasoningContent.WriteString(rc)
+		}
+
+		if tcs, ok := delta["tool_calls"].([]any); ok {
+			for _, tcRaw := range tcs {
+				tc, ok := tcRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+
+				idx := 0
+				if idxF, ok := tc["index"].(float64); ok {
+					idx = int(idxF)
+				}
+
+				existing, ok := toolCalls[idx]
+				if !ok {
+					existing = map[string]any{
+						"type": "function",
+						"function": map[string]any{
+							"name":      "",
+							"arguments": "",
+						},
+					}
+					toolCalls[idx] = existing
+				}
+
+				if id, ok := tc["id"].(string); ok && id != "" {
+					existing["id"] = id
+				}
+				if typ, ok := tc["type"].(string); ok && typ != "" {
+					existing["type"] = typ
+				}
+
+				if fn, ok := tc["function"].(map[string]any); ok {
+					efn := existing["function"].(map[string]any)
+					if name, ok := fn["name"].(string); ok && name != "" {
+						efn["name"] = name
+					}
+					if args, ok := fn["arguments"].(string); ok {
+						efn["arguments"] = efn["arguments"].(string) + args
+					}
+				}
+			}
+		}
+	}
+
+	// Build the synthetic response message
+	msg := map[string]any{
+		"role": "assistant",
+	}
+	if content.Len() > 0 {
+		msg["content"] = content.String()
+	}
+	if reasoningContent.Len() > 0 {
+		msg["reasoning_content"] = reasoningContent.String()
+	}
+	if len(toolCalls) > 0 {
+		var tcs []any
+		for i := 0; i < len(toolCalls); i++ {
+			if tc, ok := toolCalls[i]; ok {
+				tcs = append(tcs, tc)
+			}
+		}
+		msg["tool_calls"] = tcs
+	}
+
+	resp := map[string]any{
+		"choices": []any{
+			map[string]any{
+				"message":       msg,
+				"finish_reason": "stop",
+			},
+		},
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return nil
+	}
+	return data
 }

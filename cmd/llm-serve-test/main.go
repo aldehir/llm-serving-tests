@@ -16,6 +16,7 @@ import (
 	"github.com/aldehir/llm-serving-tests/internal/client"
 	"github.com/aldehir/llm-serving-tests/internal/eval"
 	evallog "github.com/aldehir/llm-serving-tests/internal/log"
+	"github.com/aldehir/llm-serving-tests/internal/report"
 )
 
 var (
@@ -182,6 +183,12 @@ func runEvals(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nResults: %d/%d passed\n", passed, len(results))
 	fmt.Printf("\nLogs written to: %s\n", logger.Dir())
+
+	if err := report.WriteReport(logger.Dir(), logger.Model(), logger.Evals()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to generate report: %v\n", err)
+	} else {
+		fmt.Printf("Report: %s/report.html\n", logger.Dir())
+	}
 
 	if passed < len(results) {
 		os.Exit(1)
