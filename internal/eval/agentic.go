@@ -19,6 +19,8 @@ func agenticEvals() []Eval {
 		&agenticLongResponseEval{streaming: true},
 		&agenticTemplateRenderingEval{},
 		&agenticIncidentInvestigationEval{streaming: true},
+		&agenticMultiCityWeatherEval{streaming: true},
+		&agenticMultiCityWeatherEval{streaming: true, parallelToolCalls: true},
 	}
 }
 
@@ -303,7 +305,7 @@ func (e *agenticReasoningInTemplateEval) Run(ctx context.Context, c *client.Clie
 	}
 
 	// Call /apply-template
-	prompt, err := c.ApplyTemplate(ctx, messages)
+	prompt, err := c.ApplyTemplate(ctx, client.ApplyTemplateRequest{Messages: messages})
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -436,7 +438,7 @@ func (e *agenticReasoningNotInUserTemplateEval) Run(ctx context.Context, c *clie
 	}
 
 	// Call /apply-template
-	prompt, err := c.ApplyTemplate(ctx, messages)
+	prompt, err := c.ApplyTemplate(ctx, client.ApplyTemplateRequest{Messages: messages})
 	if err != nil {
 		return Result{
 			Name:     e.Name(),
@@ -801,7 +803,7 @@ func (e *agenticTemplateRenderingEval) Run(ctx context.Context, c *client.Client
 	}
 
 	// Render the template
-	prompt, err := c.ApplyTemplate(ctx, messages)
+	prompt, err := c.ApplyTemplate(ctx, client.ApplyTemplateRequest{Messages: messages})
 	if err != nil {
 		return Result{
 			Name:     e.Name(),

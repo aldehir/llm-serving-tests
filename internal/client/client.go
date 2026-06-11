@@ -216,13 +216,10 @@ func (c *Client) setHeaders(req *http.Request) {
 // ApplyTemplate calls the /apply-template endpoint to render messages into a prompt.
 // This is specific to llama.cpp servers.
 // Note: This endpoint is at the root, not under /v1.
-func (c *Client) ApplyTemplate(ctx context.Context, messages []Message) (string, error) {
-	reqData := ApplyTemplateRequest{
-		Model:    c.model,
-		Messages: messages,
-	}
+func (c *Client) ApplyTemplate(ctx context.Context, req ApplyTemplateRequest) (string, error) {
+	req.Model = c.model
 
-	reqBody, err := json.Marshal(reqData)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
@@ -264,4 +261,65 @@ func (c *Client) ApplyTemplate(ctx context.Context, messages []Message) (string,
 	}
 
 	return result.Prompt, nil
+}
+
+// CompletionStream performs a streaming completion via the /completions endpoint.
+func (c *Client) CompletionStream(ctx context.Context, req CompletionRequest) (*CompletionStreamResult, error) {
+	req.Model = c.model
+	req.Stream = true
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/completions", bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	c.setHeaders(httpReq)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Log request
+	if c.logger != nil {
+		c.logger.LogRequest(httpReq.Method, httpReq.URL.String(), reqBody)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		if c.logger != nil {
+			c.logger.LogResponse(resp.StatusCode, body)
+		}
+		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	result, rawChunks, err := parseCompletionSSEStream(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log streamed response
+	if c.logger != nil {
+		c.logger.LogStreamResponse(resp.StatusCode, rawChunks)
+
+		if len(result.Chunks) > 0 {
+			var jsonlBuf bytes.Buffer
+			for _, chunk := range result.Chunks {
+				line, _ := json.Marshal(chunk)
+				jsonlBuf.Write(line)
+				jsonlBuf.WriteByte('\n')
+			}
+			c.logger.LogStreamChunks(jsonlBuf.Bytes())
+		}
+
+		c.logger.LogCompletionTokens(result.Text, result.Tokens)
+	}
+
+	return result, nil
 }

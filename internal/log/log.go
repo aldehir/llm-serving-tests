@@ -18,6 +18,7 @@ type RequestLogger interface {
 	LogResponse(status int, body []byte)
 	LogStreamResponse(status int, rawChunks []byte)
 	LogStreamChunks(jsonl []byte)
+	LogCompletionTokens(text string, tokens []string)
 }
 
 // TurnData captures a single request/response pair for report generation.
@@ -102,6 +103,10 @@ type EvalLog struct {
 	buf          bytes.Buffer
 	streamChunks []byte
 
+	// Raw completion token data
+	completionText   string
+	completionTokens []string
+
 	// Structured data for report generation
 	pendingURL     string
 	pendingRequest json.RawMessage
@@ -168,6 +173,13 @@ func (el *EvalLog) LogStreamChunks(jsonl []byte) {
 	}
 }
 
+// LogCompletionTokens stores the aggregated text and per-token breakdown
+// for raw completion responses.
+func (el *EvalLog) LogCompletionTokens(text string, tokens []string) {
+	el.completionText = text
+	el.completionTokens = tokens
+}
+
 // LogError logs an error.
 func (el *EvalLog) LogError(err error) {
 	el.buf.WriteString(fmt.Sprintf("!!! ERROR: %v\n\n", err))
@@ -209,6 +221,25 @@ func (el *EvalLog) End() error {
 		jsonlFile := filepath.Join(el.logger.dir, el.name+".stream.jsonl")
 		if err := os.WriteFile(jsonlFile, el.streamChunks, 0644); err != nil {
 			return fmt.Errorf("write stream jsonl file: %w", err)
+		}
+	}
+
+	// Write tokens YAML for raw completions
+	if len(el.completionTokens) > 0 {
+		var buf bytes.Buffer
+		buf.WriteString("text: |\n")
+		for _, line := range strings.Split(el.completionText, "\n") {
+			buf.WriteString("  ")
+			buf.WriteString(line)
+			buf.WriteByte('\n')
+		}
+		buf.WriteString("tokens:\n")
+		for _, tok := range el.completionTokens {
+			fmt.Fprintf(&buf, "  - %q\n", tok)
+		}
+		tokensFile := filepath.Join(el.logger.dir, el.name+".tokens.yaml")
+		if err := os.WriteFile(tokensFile, buf.Bytes(), 0644); err != nil {
+			return fmt.Errorf("write tokens yaml file: %w", err)
 		}
 	}
 

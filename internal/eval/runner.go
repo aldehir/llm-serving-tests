@@ -358,5 +358,8 @@ func AllEvals() []Eval {
 	// Agentic evals (multi-turn with interleaved reasoning)
 	evals = append(evals, agenticEvals()...)
 
+	// Raw completion evals (apply-template + /completions)
+	evals = append(evals, rawEvals()...)
+
 	return evals
 }

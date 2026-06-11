@@ -78,6 +78,64 @@ func parseSSEStream(r io.Reader) (*StreamResult, []byte, error) {
 	return result, rawChunks.Bytes(), nil
 }
 
+// CompletionStreamResult holds the result of a streaming /completions call.
+type CompletionStreamResult struct {
+	// Full concatenated output
+	Text string
+	// Individual token strings from each delta
+	Tokens []string
+	Usage  *Usage
+	// Raw chunks for inspection
+	Chunks []CompletionChunk
+}
+
+// parseCompletionSSEStream parses an SSE stream from /completions and accumulates the result.
+func parseCompletionSSEStream(r io.Reader) (*CompletionStreamResult, []byte, error) {
+	result := &CompletionStreamResult{}
+
+	var rawChunks bytes.Buffer
+	scanner := bufio.NewScanner(r)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		rawChunks.WriteString(line)
+		rawChunks.WriteString("\n")
+
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+
+		var chunk CompletionChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			return nil, rawChunks.Bytes(), fmt.Errorf("unmarshal chunk: %w", err)
+		}
+
+		result.Chunks = append(result.Chunks, chunk)
+
+		if chunk.Usage != nil {
+			result.Usage = chunk.Usage
+		}
+
+		for _, choice := range chunk.Choices {
+			if choice.Text != "" {
+				result.Text += choice.Text
+				result.Tokens = append(result.Tokens, choice.Text)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, rawChunks.Bytes(), fmt.Errorf("scan stream: %w", err)
+	}
+
+	return result, rawChunks.Bytes(), nil
+}
+
 // toolCallBuilder accumulates tool call deltas.
 type toolCallBuilder struct {
 	id        string

@@ -2,17 +2,25 @@ package client
 
 import "encoding/json"
 
+// Bool returns a pointer to v, for optional boolean request fields.
+func Bool(v bool) *bool { return &v }
+
 // ChatCompletionRequest represents a chat completion request.
 type ChatCompletionRequest struct {
 	Model             string          `json:"model"`
 	Messages          []Message       `json:"messages"`
 	Tools             []Tool          `json:"tools,omitempty"`
 	ToolChoice        any             `json:"tool_choice,omitempty"`
-	ParallelToolCalls bool            `json:"parallel_tool_calls,omitempty"`
+	ParallelToolCalls bool            `json:"parallel_tool_calls"`
 	ResponseFormat    *ResponseFormat `json:"response_format,omitempty"`
 	Stream            bool            `json:"stream,omitempty"`
 	StreamOptions     *StreamOptions  `json:"stream_options,omitempty"`
 	MaxTokens         int             `json:"max_tokens,omitempty"`
+
+	// CachePrompt controls llama.cpp prompt caching. When nil, the field is
+	// omitted and the server uses its default; set to false to bypass the
+	// prompt cache.
+	CachePrompt *bool `json:"cache_prompt,omitempty"`
 
 	// Extra contains additional fields to include in the request JSON.
 	// These are flattened into the root of the request object.
@@ -29,12 +37,12 @@ func (r ChatCompletionRequest) MarshalJSON() ([]byte, error) {
 
 	if len(r.Tools) > 0 {
 		m["tools"] = r.Tools
+		// Always sent explicitly when tools are present: servers default
+		// parallel_tool_calls to true, but evals must opt in.
+		m["parallel_tool_calls"] = r.ParallelToolCalls
 	}
 	if r.ToolChoice != nil {
 		m["tool_choice"] = r.ToolChoice
-	}
-	if r.ParallelToolCalls {
-		m["parallel_tool_calls"] = r.ParallelToolCalls
 	}
 	if r.ResponseFormat != nil {
 		m["response_format"] = r.ResponseFormat
@@ -47,6 +55,9 @@ func (r ChatCompletionRequest) MarshalJSON() ([]byte, error) {
 	}
 	if r.MaxTokens > 0 {
 		m["max_tokens"] = r.MaxTokens
+	}
+	if r.CachePrompt != nil {
+		m["cache_prompt"] = *r.CachePrompt
 	}
 
 	// Merge extra fields (they can override standard fields if needed)
@@ -186,6 +197,37 @@ type ToolCallFunctionDelta struct {
 type ApplyTemplateRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
+	Tools    []Tool    `json:"tools,omitempty"`
+}
+
+// CompletionRequest represents a request to the /completions endpoint.
+type CompletionRequest struct {
+	Model     string `json:"model"`
+	Prompt    string `json:"prompt"`
+	MaxTokens int    `json:"max_tokens,omitempty"`
+	Stream    bool   `json:"stream,omitempty"`
+
+	// CachePrompt controls llama.cpp prompt caching. When nil, the field is
+	// omitted and the server uses its default; set to false to bypass the
+	// prompt cache.
+	CachePrompt *bool `json:"cache_prompt,omitempty"`
+}
+
+// CompletionChunk represents a streaming response chunk from /completions.
+type CompletionChunk struct {
+	ID      string                  `json:"id"`
+	Object  string                  `json:"object"`
+	Created int64                   `json:"created"`
+	Model   string                  `json:"model"`
+	Choices []CompletionChunkChoice `json:"choices"`
+	Usage   *Usage                  `json:"usage,omitempty"`
+}
+
+// CompletionChunkChoice represents a choice in a /completions streaming chunk.
+type CompletionChunkChoice struct {
+	Index        int     `json:"index"`
+	Text         string  `json:"text"`
+	FinishReason *string `json:"finish_reason"`
 }
 
 // ApplyTemplateResponse represents a response from the /apply-template endpoint.
